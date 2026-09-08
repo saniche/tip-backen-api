@@ -1,2 +1,3 @@
-# tip-backen-api
-Talent Intelligent Plateform Backend API
+# Talent Intelligent Platform
+
+Talent Intelligent Platform Backend API
