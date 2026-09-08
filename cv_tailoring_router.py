@@ -1,0 +1,80 @@
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from auth import get_current_user
+from database import SessionLocal, get_db
+from models import Job, JobMatchingResult, ProcessingJob, ProcessingJobStatus, ProcessingJobType, TailoredCVRecord, User, UserProfile
+from pipeline.cv_tailoring import build_tailored_cv
+from pipeline.llm_matching import JobData
+from pipeline.markdown_writer import render_tailored_cv_markdown, suggest_filename
+from schemas import CvTailoringRequest, ProcessingJobOut
+from serialization import dict_to_user_profile
+from storage import build_blob_path, upload_markdown
+
+router = APIRouter(prefix="/cv-tailoring", tags=["cv-tailoring"])
+
+
+def _run_cv_tailoring(proc_job_id: str, user_id: str, matching_id: str, output_language: str) -> None:
+    db = SessionLocal()
+    try:
+        proc_job = db.get(ProcessingJob, proc_job_id)
+        proc_job.status = ProcessingJobStatus.RUNNING
+        db.commit()
+
+        matching = db.get(JobMatchingResult, matching_id)
+        job = db.get(Job, matching.job_id)
+        profile_row = db.get(UserProfile, matching.profile_id)  # same version the match was scored against
+        profile = dict_to_user_profile(profile_row.data)
+
+        job_data = JobData(
+            title=job.title,
+            required=job.required,
+            desirable=job.desirable,
+            technical_stack=job.technical_stack,
+            key_responsibilities=job.key_responsibilities,
+            summary=job.summary,
+        )
+
+        tailored = build_tailored_cv(profile, job_data, match_score=matching.score, output_language=output_language)
+        markdown = render_tailored_cv_markdown(tailored)
+
+        record = TailoredCVRecord(matching_id=matching.id, user_id=user_id, blob_path="")
+        db.add(record)
+        db.flush()  # assigns record.id before we build the blob path
+
+        blob_path = build_blob_path(user_id, record.id, suggest_filename(tailored))
+        upload_markdown(blob_path, markdown)
+        record.blob_path = blob_path
+        db.commit()
+
+        proc_job.status = ProcessingJobStatus.DONE
+        proc_job.result_id = record.id
+        db.commit()
+    except Exception as e:  # noqa: BLE001 — surface via polled status
+        proc_job.status = ProcessingJobStatus.FAILED
+        proc_job.error = str(e)
+        db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/tailor", response_model=ProcessingJobOut)
+def tailor_cv(
+    payload: CvTailoringRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    matching = db.get(JobMatchingResult, payload.matching_id)
+    if not matching or matching.user_id != current_user.id:
+        raise HTTPException(404, "Matching result not found")
+
+    proc_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.CV_TAILOR)
+    db.add(proc_job)
+    db.commit()
+
+    background_tasks.add_task(
+        _run_cv_tailoring, proc_job.id, current_user.id, matching.id, payload.output_language
+    )
+
+    return ProcessingJobOut(id=proc_job.id, status=proc_job.status.value)
