@@ -1,0 +1,122 @@
+"""
+ORM models.
+
+Design notes (see conversation for full rationale):
+- Job is global/deduplicated by url — NOT scoped by user. Multiple users can match against the
+  same posting without re-extracting it.
+- UserProfile is append-only (one row per rebuild, not overwritten) so a JobMatching row can point
+  at the exact profile version it was scored against, even after the profile changes later.
+- ProcessingJob tracks the two slow, backgrounded operations (profile build, CV tailoring) so the
+  API can return 202 + a job id immediately and let the client poll for completion.
+"""
+
+import enum
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, String, Boolean, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from database import Base
+
+
+def _uuid() -> str:
+    return str(uuid.uuid4())
+
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class Job(Base):
+    """Global, deduplicated by url. Not scoped by user."""
+
+    __tablename__ = "jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    url: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
+    title: Mapped[str] = mapped_column(String)
+    company: Mapped[str | None] = mapped_column(String, nullable=True)
+    location: Mapped[str | None] = mapped_column(String, nullable=True)
+    salary: Mapped[str | None] = mapped_column(String, nullable=True)
+    source: Mapped[str | None] = mapped_column(String, nullable=True)
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    posting_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    key_responsibilities: Mapped[list] = mapped_column(JSON, default=list)
+    required: Mapped[dict] = mapped_column(JSON, default=dict)  # {"qualifications": [...], "skills": [...]}
+    desirable: Mapped[dict] = mapped_column(JSON, default=dict)
+    technical_stack: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class UserProfile(Base):
+    """Append-only: each rebuild creates a new row. The most recent row per user is 'current'."""
+
+    __tablename__ = "user_profiles"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    data: Mapped[dict] = mapped_column(JSON)  # serialized UserProfile (see profile_builder.UserProfile)
+    output_language: Mapped[str] = mapped_column(String, default="English")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class JobMatchingResult(Base):
+    __tablename__ = "job_matchings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), index=True)
+    profile_id: Mapped[str] = mapped_column(String, ForeignKey("user_profiles.id"))
+    score: Mapped[int] = mapped_column(Float)
+    eligible: Mapped[bool] = mapped_column(Boolean)
+    scoring_status: Mapped[str] = mapped_column(String)  # "scored" | "unscorable"
+    breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    llm_match_output: Mapped[dict] = mapped_column(JSON)  # raw LlmMatchOutput, for audit/debugging
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class TailoredCVRecord(Base):
+    __tablename__ = "tailored_cvs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    matching_id: Mapped[str] = mapped_column(String, ForeignKey("job_matchings.id"), index=True)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    blob_path: Mapped[str] = mapped_column(String)  # key/path in Azure Blob Storage
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ProcessingJobType(str, enum.Enum):
+    PROFILE_BUILD = "profile_build"
+    CV_TAILOR = "cv_tailor"
+
+
+class ProcessingJobStatus(str, enum.Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class ProcessingJob(Base):
+    """Tracks a backgrounded operation so the client can poll GET /jobs/{id} for status/result."""
+
+    __tablename__ = "processing_jobs"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    job_type: Mapped[ProcessingJobType] = mapped_column(Enum(ProcessingJobType))
+    status: Mapped[ProcessingJobStatus] = mapped_column(Enum(ProcessingJobStatus), default=ProcessingJobStatus.PENDING)
+    result_id: Mapped[str | None] = mapped_column(String, nullable=True)  # points at UserProfile.id or TailoredCVRecord.id
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
