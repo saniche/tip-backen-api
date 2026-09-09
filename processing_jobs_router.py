@@ -6,7 +6,7 @@ from database import get_db
 from models import ProcessingJob, User
 from schemas import ProcessingJobOut
 
-router = APIRouter(prefix="/jobs", tags=["processing-jobs"])
+router = APIRouter(prefix="/processing-jobs", tags=["processing-jobs"])
 
 
 @router.get("/{job_id}", response_model=ProcessingJobOut)

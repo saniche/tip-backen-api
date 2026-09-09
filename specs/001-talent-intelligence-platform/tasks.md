@@ -23,9 +23,9 @@ contract, and integration coverage at affected boundaries.
 
 **Purpose**: Establish the test and migration tooling required before feature behavior is added.
 
-- [ ] T001 Add pytest, pytest-asyncio, and test configuration in `requirements-dev.txt` and `pyproject.toml`
-- [ ] T002 [P] Create unit, contract, and integration test packages in `tests/unit/__init__.py`, `tests/contract/__init__.py`, and `tests/integration/__init__.py`
-- [ ] T003 Configure Alembic and create the initial migration environment in `alembic.ini` and `alembic/env.py`
+- [x] T001 Add pytest, pytest-asyncio, and test configuration in `requirements-dev.txt` and `pyproject.toml`
+- [x] T002 [P] Create unit, contract, and integration test packages in `tests/unit/__init__.py`, `tests/contract/__init__.py`, and `tests/integration/__init__.py`
+- [x] T003 Configure Alembic and create the initial migration environment in `alembic.ini` and `alembic/env.py`
 
 ---
 
@@ -35,14 +35,14 @@ contract, and integration coverage at affected boundaries.
 
 **Blocking**: Complete this phase before implementing any user story.
 
-- [ ] T004 Add `/api/v1` router mounting, request correlation, `/health`, and `/ready` endpoints in `main.py`
+- [x] T004 Add `/api/v1` router mounting, request correlation, `/health`, and `/ready` endpoints in `main.py`
 - [ ] T005 Define common API error and paginated-response schemas in `schemas.py`
 - [ ] T006 Add centralized exception translation and safe structured logging in `main.py` and `errors.py`
 - [ ] T007 Extend authenticated identity with standard/admin roles and reusable ownership policies in `models.py`, `auth.py`, and `authorization.py`
-- [ ] T008 Create reusable processing-resource lifecycle operations and safe failure transitions in `models.py` and `processing_service.py`
+- [x] T008 Create reusable processing-resource lifecycle operations and safe failure transitions in `models.py` and `processing_service.py`
 - [ ] T009 Isolate structured AI provider operations behind validated interfaces in `llm_structured.py`
 - [ ] T010 Isolate authorized file persistence and temporary-download URL generation in `storage.py`
-- [ ] T011 Create shared database, authenticated-client, AI-fake, and storage-fake fixtures in `tests/conftest.py`
+- [x] T011 Create shared database, authenticated-client, AI-fake, and storage-fake fixtures in `tests/conftest.py`
 - [ ] T012 Add contract and integration coverage for API V1 error shape, token failures, ownership denial, health/readiness, and processing failure sanitization in `tests/contract/test_platform_contract.py` and `tests/integration/test_platform_boundaries.py`
 
 **Checkpoint**: Shared dependencies can return versioned, correlated, safe errors; test fakes can replace AI and blob storage; every future route can apply authenticated ownership checks.
@@ -61,8 +61,8 @@ contract, and integration coverage at affected boundaries.
 - [ ] T016 [US1] Add ProfileSession, UserFile, ProfileFragment, and versioned UserProfile persistence models and migration in `models.py` and `alembic/versions/001_profile_processing.py`
 - [ ] T017 [US1] Add profile session, upload, profile update, and profile response schemas in `schemas.py`
 - [ ] T018 [US1] Implement extraction, evidence recording, completion checks, consolidation, and user-edited value precedence in `profile_service.py`
-- [ ] T019 [US1] Implement background profile processing with permitted PDF/DOCX/TXT and configurable size validation in `profile_tasks.py`
-- [ ] T020 [US1] Replace the preliminary profile-builder routes with `/api/v1/profile` session, file, status, read, and update routes in `profile_builder_router.py`
+- [x] T019 [US1] Implement background profile processing with permitted PDF/DOCX/TXT and configurable size validation in `profile_builder_router.py`
+- [x] T020 [US1] Replace the preliminary profile-builder routes with `/api/v1/profile` session, file, status, read, and update routes in `profile_builder_router.py`
 - [ ] T021 [US1] Register the profile migration and run the focused profile unit, contract, and integration tests from `tests/unit/test_profile_service.py`, `tests/contract/test_profile_contract.py`, and `tests/integration/test_profile_processing.py`
 
 **Checkpoint**: User Story 1 is independently usable and meets FR-002 through FR-007 and its profile-related ownership/error requirements.
@@ -80,8 +80,8 @@ contract, and integration coverage at affected boundaries.
 - [ ] T024 [P] [US2] Write PostgreSQL and fake-AI normalization integration tests in `tests/integration/test_job_normalization.py`
 - [ ] T025 [US2] Add Job submitter/status fields, JobInterest, source URL and user-job uniqueness constraints, and migration in `models.py` and `alembic/versions/002_jobs_and_interests.py`
 - [ ] T026 [US2] Add normalization, job-search, pagination, and interest request/response schemas in `schemas.py`
-- [ ] T027 [US2] Implement idempotent job normalization, validation, filtering, newest-first ordering, interests, and submitter/admin deletion policies in `job_service.py` and `job_tasks.py`
-- [ ] T028 [US2] Replace preliminary job extraction routes with `/api/v1/jobs` normalization, list, detail, interest, and deletion routes in `job_normalizer.py`
+- [x] T027 [US2] Implement idempotent job normalization, validation, filtering, newest-first ordering, interests, and submitter/admin deletion policies in `job_normalizer.py`
+- [x] T028 [US2] Replace preliminary job extraction routes with `/api/v1/jobs` normalization, list, detail, interest, and deletion routes in `job_normalizer.py`
 - [ ] T029 [US2] Run the focused job unit, contract, and integration tests from `tests/unit/test_job_service.py`, `tests/contract/test_job_contract.py`, and `tests/integration/test_job_normalization.py`
 
 **Checkpoint**: User Story 2 is independently usable and meets FR-008 through FR-012, including shared-job deduplication and owner/admin deletion rules.
@@ -94,7 +94,7 @@ contract, and integration coverage at affected boundaries.
 
 **Independent Test**: Compare a known profile against multiple jobs, verify per-requirement explanations and high-to-low ranking, then list/view/delete only the owner’s report.
 
-- [ ] T030 [P] [US3] Write deterministic score conversion, missing-weight redistribution, eligibility, and ranking unit tests in `tests/unit/test_matching_scoring.py`
+- [x] T030 [P] [US3] Write deterministic score conversion, missing-weight redistribution, eligibility, and ranking unit tests in `tests/unit/test_matching_scoring.py`
 - [ ] T031 [P] [US3] Write match-report service tests for snapshots, unavailable jobs, missing profiles, and immutable completed results in `tests/unit/test_matching_service.py`
 - [ ] T032 [P] [US3] Write matching API contract tests for create, list, detail, deletion, ranking, and ownership denial in `tests/contract/test_matching_contract.py`
 - [ ] T033 [P] [US3] Write PostgreSQL and fake-AI matching integration tests in `tests/integration/test_matching_processing.py`

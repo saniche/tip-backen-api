@@ -11,7 +11,7 @@ from schemas import Token, UserCreate
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=Token)
+@router.post("/register", response_model=Token, status_code=201)
 def register(payload: UserCreate, db: Session = Depends(get_db)):
     existing = db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
     if existing:

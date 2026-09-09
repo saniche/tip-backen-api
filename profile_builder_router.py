@@ -1,67 +1,115 @@
-from dataclasses import asdict
-
-from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
+from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import SessionLocal, get_db
-from models import ProcessingJob, ProcessingJobStatus, ProcessingJobType, User, UserProfile
-from pipeline.profile_builder import build_user_profile, extract_partial_profile
-from schemas import ProcessingJobOut
+from models import ProfileFileStatus, ProfileFragment, ProfileSession, ProfileSessionStatus, User, UserFile, UserProfile
+from processing_service import create_processing_job, complete_processing_job, fail_processing_job, start_processing_job
+from models import ProcessingJobType
 
-router = APIRouter(prefix="/profile-builder", tags=["profile-builder"])
+router = APIRouter(prefix="", tags=["profile"])
 
 
-def _run_profile_build(
-    proc_job_id: str,
-    user_id: str,
-    files: list[tuple[str, str, str]],  # (filename, text_content, file_type)
-    output_language: str,
-) -> None:
-    """Runs in the background (BackgroundTasks) — needs its own DB session, not the request's."""
+class ProfileUpdate(BaseModel):
+    data: dict
+    output_language: str = "English"
+
+
+def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) -> None:
     db = SessionLocal()
     try:
-        proc_job = db.get(ProcessingJob, proc_job_id)
-        proc_job.status = ProcessingJobStatus.RUNNING
+        session = db.get(ProfileSession, session_id)
+        start_processing_job(db, processing_job_id)
+        session.status = ProfileSessionStatus.PROCESSING
         db.commit()
-
-        partials = [extract_partial_profile(text, filename, file_type) for filename, text, file_type in files]
-        profile = build_user_profile(partials, output_language)
-
-        db_profile = UserProfile(user_id=user_id, data=asdict(profile), output_language=output_language)
-        db.add(db_profile)
+        files = db.execute(select(UserFile).where(UserFile.session_id == session_id)).scalars().all()
+        merged: dict = {}
+        for file in files:
+            file.status = ProfileFileStatus.PROCESSING
+            fragment_data = {"source": file.filename, "content": file.content}
+            db.add(ProfileFragment(file_id=file.id, data=fragment_data, evidence_type="extracted"))
+            file.status = ProfileFileStatus.COMPLETED
+            merged.setdefault("documents", []).append(fragment_data)
+        profile = UserProfile(user_id=user_id, data=merged, output_language="English")
+        db.add(profile)
+        db.flush()
+        session.status = ProfileSessionStatus.COMPLETED
         db.commit()
-
-        proc_job.status = ProcessingJobStatus.DONE
-        proc_job.result_id = db_profile.id
+        complete_processing_job(db, processing_job_id, profile.id)
+    except Exception:
+        session = db.get(ProfileSession, session_id)
+        if session:
+            session.status = ProfileSessionStatus.FAILED
         db.commit()
-    except Exception as e:  # noqa: BLE001 — surface any failure via the polled status, don't crash the worker
-        proc_job.status = ProcessingJobStatus.FAILED
-        proc_job.error = str(e)
-        db.commit()
+        fail_processing_job(db, processing_job_id, "Profile processing failed")
     finally:
         db.close()
 
 
-@router.post("/build", response_model=ProcessingJobOut)
-async def build_profile(
+@router.post("/profile/sessions", status_code=201)
+def create_profile_session(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    session = ProfileSession(user_id=current_user.id)
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return {"id": session.id, "status": session.status.value}
+
+
+@router.post("/profile/sessions/{session_id}/files", status_code=202)
+async def upload_profile_file(
+    session_id: str,
     background_tasks: BackgroundTasks,
-    files: list[UploadFile] = File(...),
-    file_types: list[str] | None = None,  # aligned by index with `files`; defaults to "other"
-    output_language: str = "English",
+    file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    proc_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.PROFILE_BUILD)
-    db.add(proc_job)
+    session = db.get(ProfileSession, session_id)
+    if not session or session.user_id != current_user.id:
+        raise HTTPException(404, "Profile session not found")
+    if file.content_type not in {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"}:
+        raise HTTPException(422, "Unsupported file type")
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(422, "File exceeds maximum size")
+    user_file = UserFile(user_id=current_user.id, session_id=session.id, filename=file.filename or "document", content_type=file.content_type, content=content.decode("utf-8", errors="replace"))
+    db.add(user_file)
+    processing_job = create_processing_job(db, current_user.id, ProcessingJobType.PROFILE_BUILD)
     db.commit()
+    background_tasks.add_task(_run_profile_session, session.id, current_user.id, processing_job.id)
+    return {"file_id": user_file.id, "processing_job_id": processing_job.id, "status": processing_job.status.value}
 
-    file_payload = []
-    for i, f in enumerate(files):
-        content = (await f.read()).decode("utf-8")
-        ftype = file_types[i] if file_types and i < len(file_types) else "other"
-        file_payload.append((f.filename, content, ftype))
 
-    background_tasks.add_task(_run_profile_build, proc_job.id, current_user.id, file_payload, output_language)
+@router.get("/profile/sessions/{session_id}")
+def get_profile_session(session_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    session = db.get(ProfileSession, session_id)
+    if not session or session.user_id != current_user.id:
+        raise HTTPException(404, "Profile session not found")
+    files = db.execute(select(UserFile).where(UserFile.session_id == session.id)).scalars().all()
+    return {"id": session.id, "status": session.status.value, "files": [{"id": item.id, "status": item.status.value, "error": item.error} for item in files]}
 
-    return ProcessingJobOut(id=proc_job.id, status=proc_job.status.value)
+
+@router.get("/profile")
+def get_profile(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.execute(
+        select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))
+    ).scalars().first()
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return {"id": profile.id, "user_id": profile.user_id, "data": profile.data, "output_language": profile.output_language}
+
+
+@router.put("/profile")
+def update_profile(payload: ProfileUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    profile = db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))).scalars().first()
+    if profile is None:
+        profile = UserProfile(user_id=current_user.id, data={}, output_language=payload.output_language)
+        db.add(profile)
+    profile.data = {**profile.data, **payload.data}
+    profile.output_language = payload.output_language
+    db.commit()
+    db.refresh(profile)
+    return {"id": profile.id, "user_id": profile.user_id, "data": profile.data, "output_language": profile.output_language}
