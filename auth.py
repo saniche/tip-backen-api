@@ -16,6 +16,10 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import User
 
+
+def user_is_admin(user: User) -> bool:
+    return getattr(user, "role", "user") == "admin"
+
 SECRET_KEY = os.environ["JWT_SECRET_KEY"]  # required — fail fast if not set, never default a secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24h

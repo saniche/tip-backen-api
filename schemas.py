@@ -1,6 +1,27 @@
 from pydantic import BaseModel, ConfigDict
 
 
+class ErrorDetails(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str
+    message: str
+    details: dict | None = None
+    request_id: str | None = None
+
+
+class ApiErrorResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    error: ErrorDetails
+
+
+class PaginatedResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    items: list
+    total: int
+    page: int = 1
+    limit: int = 50
+
+
 class JobRequirements(BaseModel):
     model_config = ConfigDict(extra="forbid")
     qualifications: list[str]

@@ -8,6 +8,8 @@ from database import SessionLocal, get_db
 from models import ProfileFileStatus, ProfileFragment, ProfileSession, ProfileSessionStatus, User, UserFile, UserProfile
 from processing_service import create_processing_job, complete_processing_job, fail_processing_job, start_processing_job
 from models import ProcessingJobType
+from pipeline.profile_builder import extract_profile
+from profile_service import consolidate_profile_fragments
 
 router = APIRouter(prefix="", tags=["profile"])
 
@@ -25,13 +27,21 @@ def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) 
         session.status = ProfileSessionStatus.PROCESSING
         db.commit()
         files = db.execute(select(UserFile).where(UserFile.session_id == session_id)).scalars().all()
-        merged: dict = {}
+        fragments = []
         for file in files:
             file.status = ProfileFileStatus.PROCESSING
-            fragment_data = {"source": file.filename, "content": file.content}
+            extracted = extract_profile({"content": file.content, "name": file.filename})
+            fragment_data = {
+                "name": extracted.Name,
+                "summary": extracted.Summary,
+                "skills": [item.Name for item in extracted.TechnicalSkills],
+                "languages": extracted.Languages,
+                "source": file.filename,
+            }
             db.add(ProfileFragment(file_id=file.id, data=fragment_data, evidence_type="extracted"))
+            fragments.append({"data": fragment_data, "evidence_type": "extracted"})
             file.status = ProfileFileStatus.COMPLETED
-            merged.setdefault("documents", []).append(fragment_data)
+        merged = consolidate_profile_fragments(fragments)
         profile = UserProfile(user_id=user_id, data=merged, output_language="English")
         db.add(profile)
         db.flush()
@@ -108,7 +118,13 @@ def update_profile(payload: ProfileUpdate, current_user: User = Depends(get_curr
     if profile is None:
         profile = UserProfile(user_id=current_user.id, data={}, output_language=payload.output_language)
         db.add(profile)
-    profile.data = {**profile.data, **payload.data}
+    merged = dict(profile.data)
+    for key, value in payload.data.items():
+        if isinstance(value, dict) and "value" in value:
+            merged[key] = value["value"]
+        else:
+            merged[key] = value
+    profile.data = merged
     profile.output_language = payload.output_language
     db.commit()
     db.refresh(profile)

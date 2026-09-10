@@ -36,14 +36,14 @@ contract, and integration coverage at affected boundaries.
 **Blocking**: Complete this phase before implementing any user story.
 
 - [x] T004 Add `/api/v1` router mounting, request correlation, `/health`, and `/ready` endpoints in `main.py`
-- [ ] T005 Define common API error and paginated-response schemas in `schemas.py`
-- [ ] T006 Add centralized exception translation and safe structured logging in `main.py` and `errors.py`
-- [ ] T007 Extend authenticated identity with standard/admin roles and reusable ownership policies in `models.py`, `auth.py`, and `authorization.py`
+- [x] T005 Define common API error and paginated-response schemas in `schemas.py`
+- [x] T006 Add centralized exception translation and safe structured logging in `main.py` and `errors.py`
+- [x] T007 Extend authenticated identity with standard/admin roles and reusable ownership policies in `models.py`, `auth.py`, and `authorization.py`
 - [x] T008 Create reusable processing-resource lifecycle operations and safe failure transitions in `models.py` and `processing_service.py`
-- [ ] T009 Isolate structured AI provider operations behind validated interfaces in `llm_structured.py`
-- [ ] T010 Isolate authorized file persistence and temporary-download URL generation in `storage.py`
+- [x] T009 Isolate structured AI provider operations behind validated interfaces in `llm_structured.py`
+- [x] T010 Isolate authorized file persistence and temporary-download URL generation in `storage.py`
 - [x] T011 Create shared database, authenticated-client, AI-fake, and storage-fake fixtures in `tests/conftest.py`
-- [ ] T012 Add contract and integration coverage for API V1 error shape, token failures, ownership denial, health/readiness, and processing failure sanitization in `tests/contract/test_platform_contract.py` and `tests/integration/test_platform_boundaries.py`
+- [x] T012 Add contract and integration coverage for API V1 error shape, token failures, ownership denial, health/readiness, and processing failure sanitization in `tests/contract/test_platform_contract.py` and `tests/integration/test_platform_boundaries.py`
 
 **Checkpoint**: Shared dependencies can return versioned, correlated, safe errors; test fakes can replace AI and blob storage; every future route can apply authenticated ownership checks.
 
@@ -55,12 +55,12 @@ contract, and integration coverage at affected boundaries.
 
 **Independent Test**: Upload complementary/conflicting documents, wait for completion, retrieve the consolidated profile, edit one field, then confirm a later merge preserves that edit.
 
-- [ ] T013 [P] [US1] Write profile-session state and precedence unit tests in `tests/unit/test_profile_service.py`
-- [ ] T014 [P] [US1] Write profile API contract tests for sessions, files, profile reads/updates, invalid files, and cross-user denial in `tests/contract/test_profile_contract.py`
+- [x] T013 [P] [US1] Write profile-session state and precedence unit tests in `tests/unit/test_profile_service.py`
+- [x] T014 [P] [US1] Write profile API contract tests for sessions, files, profile reads/updates, invalid files, and cross-user denial in `tests/contract/test_profile_contract.py`
 - [ ] T015 [P] [US1] Write profile processing integration tests with fake AI and storage adapters in `tests/integration/test_profile_processing.py`
-- [ ] T016 [US1] Add ProfileSession, UserFile, ProfileFragment, and versioned UserProfile persistence models and migration in `models.py` and `alembic/versions/001_profile_processing.py`
-- [ ] T017 [US1] Add profile session, upload, profile update, and profile response schemas in `schemas.py`
-- [ ] T018 [US1] Implement extraction, evidence recording, completion checks, consolidation, and user-edited value precedence in `profile_service.py`
+- [x] T016 [US1] Add ProfileSession, UserFile, ProfileFragment, and versioned UserProfile persistence models and migration in `models.py` and `alembic/versions/001_profile_processing.py`
+- [x] T017 [US1] Add profile session, upload, profile update, and profile response schemas in `schemas.py`
+- [x] T018 [US1] Implement extraction, evidence recording, completion checks, consolidation, and user-edited value precedence in `profile_service.py`
 - [x] T019 [US1] Implement background profile processing with permitted PDF/DOCX/TXT and configurable size validation in `profile_builder_router.py`
 - [x] T020 [US1] Replace the preliminary profile-builder routes with `/api/v1/profile` session, file, status, read, and update routes in `profile_builder_router.py`
 - [ ] T021 [US1] Register the profile migration and run the focused profile unit, contract, and integration tests from `tests/unit/test_profile_service.py`, `tests/contract/test_profile_contract.py`, and `tests/integration/test_profile_processing.py`
@@ -172,3 +172,16 @@ delivered by US1 and US2. US4 needs completed match results from US3.
 3. Add async report processing with AI qualitative assessments and deterministic score/ranking rules.
 4. Add grounded CV generation and protected temporary downloads.
 5. Finish with full-flow, migration, observability, and deployment validation.
+
+---
+
+## Phase 8: Convergence
+
+- [ ] T053 Create and validate the missing initial Alembic migration for the implemented persistence models per plan: persistence/migrations (missing)
+- [ ] T054 Implement the absent provider-isolated profile, matching, CV-tailoring, and markdown adapter modules required by the existing routers per plan: provider isolation (missing)
+- [ ] T055 Complete document extraction, evidence tracking, successful-session merge gating, and user-edited profile precedence per FR-004, FR-005, and FR-006 (partial)
+- [ ] T056 Complete asynchronous job normalization with structured requirement extraction, saved-date filtering, and the planned response contract per FR-008 and FR-010 (partial)
+- [ ] T057 Replace the single-job synchronous matcher with owner-scoped ranked match reports supporting immutable results and list, view, and delete operations per FR-013, FR-015, and FR-016 (contradicts)
+- [ ] T058 Implement the `/cv` request, per-job/group-all generation, owner-scoped list/detail/delete operations, and authorized download contract per FR-017 and FR-019 (contradicts)
+- [ ] T059 Centralize ownership authorization, common error schemas, and provider/storage failure sanitization across externally reachable routes per FR-001 and FR-020 (partial)
+- [ ] T060 Add the missing focused unit, contract, integration, migration, observability, and end-to-end tests required by Constitution II, Constitution III, and T012/T048-T052 (missing)
