@@ -131,10 +131,22 @@ class UserProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class MatchReport(Base):
+    __tablename__ = "match_reports"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    profile_id: Mapped[str] = mapped_column(String, ForeignKey("user_profiles.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String, default="completed")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
 class JobMatchingResult(Base):
     __tablename__ = "job_matchings"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    report_id: Mapped[str | None] = mapped_column(String, ForeignKey("match_reports.id"), index=True, nullable=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), index=True)
     profile_id: Mapped[str] = mapped_column(String, ForeignKey("user_profiles.id"))

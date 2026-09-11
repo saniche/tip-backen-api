@@ -8,6 +8,7 @@ from sqlalchemy import text
 from database import Base, engine
 from errors import AppException, translate_exception
 import auth_router
+import job_matching_router
 import job_normalizer
 import profile_builder_router
 import processing_jobs_router
@@ -80,5 +81,6 @@ def ready():
 
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(job_normalizer.router, prefix="/api/v1")
+app.include_router(job_matching_router.router, prefix="/api/v1")
 app.include_router(profile_builder_router.router, prefix="/api/v1")
 app.include_router(processing_jobs_router.router, prefix="/api/v1")
