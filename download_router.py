@@ -6,10 +6,11 @@ from database import get_db
 from models import TailoredCVRecord, User
 from storage import download_markdown
 
-router = APIRouter(prefix="/download", tags=["download"])
+router = APIRouter(tags=["download"])
 
 
-@router.get("/{tailored_cv_id}")
+@router.get("/cv/{tailored_cv_id}/download")
+@router.get("/download/{tailored_cv_id}")
 def download_tailored_cv(
     tailored_cv_id: str,
     current_user: User = Depends(get_current_user),

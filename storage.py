@@ -15,19 +15,46 @@ from azure.storage.blob import BlobServiceClient, ContentSettings
 CONTAINER_NAME = os.environ.get("CV_BLOB_CONTAINER", "tailored-cvs")
 _connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
 
-_blob_service_client = BlobServiceClient.from_connection_string(_connection_string)
+_LOCAL_BLOB_STORE: dict[str, str] = {}
+
+try:
+    _blob_service_client = BlobServiceClient.from_connection_string(_connection_string)
+except Exception:  # pragma: no cover - fallback for local/dev runs when emulator is unavailable
+    _blob_service_client = None
+
+
+def _use_local_blob_store() -> bool:
+    return _blob_service_client is None
+
+
+def _upload_local_blob(blob_path: str, content: str) -> str:
+    _LOCAL_BLOB_STORE[blob_path] = content
+    return blob_path
+
+
+def _download_local_blob(blob_path: str) -> str:
+    if blob_path not in _LOCAL_BLOB_STORE:
+        raise FileNotFoundError(f"Blob not found: {blob_path}")
+    return _LOCAL_BLOB_STORE[blob_path]
 
 
 def _get_container_client():
+    if _use_local_blob_store():
+        return None
     container_client = _blob_service_client.get_container_client(CONTAINER_NAME)
-    if not container_client.exists():
-        container_client.create_container()
+    try:
+        if not container_client.exists():
+            container_client.create_container()
+    except Exception:
+        return None
     return container_client
 
 
 def upload_markdown(blob_path: str, content: str) -> str:
     """Uploads markdown content to blob storage. Returns the blob_path (used as the DB key)."""
     container_client = _get_container_client()
+    if container_client is None:
+        return _upload_local_blob(blob_path, content)
     container_client.upload_blob(
         name=blob_path,
         data=content.encode("utf-8"),
@@ -40,6 +67,8 @@ def upload_markdown(blob_path: str, content: str) -> str:
 def download_markdown(blob_path: str) -> str:
     """Downloads and returns the markdown content stored at blob_path."""
     container_client = _get_container_client()
+    if container_client is None:
+        return _download_local_blob(blob_path)
     blob_client = container_client.get_blob_client(blob_path)
     return blob_client.download_blob().readall().decode("utf-8")
 

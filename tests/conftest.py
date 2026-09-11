@@ -7,6 +7,7 @@ os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=
 import pytest
 from fastapi.testclient import TestClient
 
+import cv_tailoring_router
 from database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
 from main import app
 import profile_builder_router
@@ -15,6 +16,7 @@ import profile_builder_router
 @pytest.fixture(autouse=True)
 def database():
     profile_builder_router.SessionLocal = TestingSessionLocal
+    cv_tailoring_router.SessionLocal = TestingSessionLocal
     Base.metadata.create_all(testing_engine)
     yield
     Base.metadata.drop_all(testing_engine)
