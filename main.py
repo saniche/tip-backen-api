@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 import auth_router
+import config  # noqa: F401
 import cv_tailoring_router
 import download_router
 import job_matching_router

@@ -13,6 +13,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
+import config  # noqa: F401
 from database import get_db
 from models import User
 

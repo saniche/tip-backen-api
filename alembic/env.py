@@ -2,6 +2,7 @@ import os
 
 from sqlalchemy import engine_from_config, pool
 
+import config  # noqa: F401
 from alembic import context
 from database import Base
 
