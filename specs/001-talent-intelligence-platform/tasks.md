@@ -206,3 +206,10 @@ delivered by US1 and US2. US4 needs completed match results from US3.
 - [x] T069 Add PostgreSQL/fake-AI job normalization boundary coverage and replace the no-op `002_jobs_and_interests.py` revision with substantive jobs and interests schema migration per T024/T025 and plan: PostgreSQL boundary (partial)
 - [x] T070 Resolve repository-wide Ruff findings and run the Docker build in a Docker-enabled environment as required by T052 and Constitution II/III (partial)
 - [x] T071 Complete the final validation matrix and reconcile residual task tracking after asynchronous normalization, static analysis, migration, and Docker validation per T060/T067 (partial)
+
+---
+
+## Phase 11: Convergence
+
+- [x] T072 Add PostgreSQL-backed integration coverage with explicit fake AI, blob, and provider adapters for profile, job, matching, and CV boundaries per Constitution III, T015/T024/T033/T042, and plan: PostgreSQL/fake-provider boundaries (partial)
+- [x] T073 Execute Alembic upgrades and assert schema constraints in `tests/integration/test_migrations.py` rather than only checking migration filenames per T050 and plan: migration/schema validation (partial)
