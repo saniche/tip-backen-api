@@ -28,8 +28,25 @@ class LlmMatchOutput:
 
 
 def get_llm_match_output(profile: dict[str, Any], job: JobData) -> LlmMatchOutput:
+    profile_values = {
+        str(item).lower()
+        for key in ("skills", "TechnicalSkills", "technical_skills")
+        for item in (profile.get(key, []) or [])
+    }
+
     def map_items(items: list[str] | None) -> list[dict[str, Any]]:
-        return [{"result": "Yes", "value": item} for item in (items or [])]
+        assessed = []
+        for item in items or []:
+            value = str(item)
+            normalized = value.lower()
+            if normalized in profile_values:
+                result, rationale = "Yes", "Profile contains this requirement."
+            elif any(token in " ".join(profile_values) for token in normalized.split() if len(token) > 2):
+                result, rationale = "Partial", "Profile contains related evidence."
+            else:
+                result, rationale = "No", "No matching profile evidence was found."
+            assessed.append({"result": result, "value": value, "rationale": rationale})
+        return assessed
 
     return LlmMatchOutput(
         required_qualifications=map_items(job.required.get("qualifications") if job.required else []),

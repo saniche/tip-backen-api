@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ErrorDetails(BaseModel):
@@ -92,8 +92,20 @@ class JobMatchingOut(BaseModel):
 
 
 class CvTailoringRequest(BaseModel):
-    matching_id: str
+    matching_id: str | None = None
+    matching_ids: list[str] = Field(default_factory=list)
+    mode: str = "per_job"
     output_language: str = "English"
+
+    @model_validator(mode="after")
+    def validate_selection(self):
+        if self.matching_id and not self.matching_ids:
+            self.matching_ids = [self.matching_id]
+        if not self.matching_ids:
+            raise ValueError("At least one matching result is required")
+        if self.mode not in {"per_job", "group_all"}:
+            raise ValueError("mode must be per_job or group_all")
+        return self
 
 
 class CvTailoringOut(BaseModel):

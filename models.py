@@ -127,6 +127,7 @@ class UserProfile(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     data: Mapped[dict] = mapped_column(JSON)  # serialized UserProfile (see profile_builder.UserProfile)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
     output_language: Mapped[str] = mapped_column(String, default="English")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -138,6 +139,7 @@ class MatchReport(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     profile_id: Mapped[str] = mapped_column(String, ForeignKey("user_profiles.id"), nullable=True)
     status: Mapped[str] = mapped_column(String, default="completed")
+    rules_version: Mapped[str] = mapped_column(String, default="v1")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
@@ -155,6 +157,10 @@ class JobMatchingResult(Base):
     scoring_status: Mapped[str] = mapped_column(String)  # "scored" | "unscorable"
     breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     llm_match_output: Mapped[dict] = mapped_column(JSON)  # raw LlmMatchOutput, for audit/debugging
+    profile_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    job_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    rules_version: Mapped[str] = mapped_column(String, default="v1")
+    rank: Mapped[int | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

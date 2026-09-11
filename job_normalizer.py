@@ -38,11 +38,23 @@ def normalize_job(payload: JobNormalizeRequest, current_user: User = Depends(get
 
 
 @router.get("")
-def list_jobs(title: str | None = None, company: str | None = None, location: str | None = None, limit: int = Query(50, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    query = select(Job).order_by(desc(Job.created_at)).limit(limit)
+def list_jobs(
+    title: str | None = None,
+    company: str | None = None,
+    location: str | None = None,
+    saved_after: str | None = None,
+    saved_before: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    query = select(Job).order_by(desc(Job.created_at)).offset((page - 1) * limit).limit(limit)
     if title: query = query.where(Job.title.ilike(f"%{title}%"))
     if company: query = query.where(Job.company.ilike(f"%{company}%"))
     if location: query = query.where(Job.location.ilike(f"%{location}%"))
+    if saved_after: query = query.where(Job.created_at >= saved_after)
+    if saved_before: query = query.where(Job.created_at <= saved_before)
     return [{"id": job.id, "url": job.url, "title": job.title, "company": job.company, "location": job.location, "created_at": job.created_at} for job in db.execute(query).scalars()]
 
 

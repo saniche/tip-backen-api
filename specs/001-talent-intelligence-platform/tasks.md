@@ -185,3 +185,15 @@ delivered by US1 and US2. US4 needs completed match results from US3.
 - [ ] T058 Implement the `/cv` request, per-job/group-all generation, owner-scoped list/detail/delete operations, and authorized download contract per FR-017 and FR-019 (contradicts)
 - [ ] T059 Centralize ownership authorization, common error schemas, and provider/storage failure sanitization across externally reachable routes per FR-001 and FR-020 (partial)
 - [ ] T060 Add the missing focused unit, contract, integration, migration, observability, and end-to-end tests required by Constitution II, Constitution III, and T012/T048-T052 (missing)
+
+---
+
+## Phase 9: Convergence
+
+- [x] T061 Preserve profile evidence metadata and user-edited precedence across subsequent successful document merges per FR-004, FR-005, and FR-006 (partial)
+- [ ] T062 Complete structured asynchronous job normalization, including requirements, responsibilities, saved-date filtering, pagination, and the planned response contract per FR-008 and FR-010 (partial)
+- [ ] T063 Implement validated match explanations, deterministic result classification, immutable profile/job context, and scoring metadata per FR-013, FR-014, and FR-015 (partial)
+- [ ] T064 Implement separate-job and group-all CV request modes with grounding validation and selected-job context per FR-017 and FR-018 (partial)
+- [ ] T065 Harden CV storage/download lifecycle and sanitize background failure details, with owner-scoped contract and integration coverage per FR-019, FR-020, and Constitution III (partial)
+- [ ] T066 Add the missing Alembic revisions and profile, job, matching, and CV boundary test suites required by the plan, Constitution II/III, and T015/T021/T024/T029/T032/T033/T039/T040-T047 (missing)
+- [ ] T067 Add observability, end-to-end, migration, configuration documentation, static-analysis, and deployment validation required by T048-T052 and SC-001/SC-002/SC-004/SC-005/SC-006 (missing)

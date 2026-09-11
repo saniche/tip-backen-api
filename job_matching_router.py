@@ -40,6 +40,7 @@ def create_match_report(
     db.add(report)
     db.flush()
 
+    created_results = []
     for job_id in payload.job_ids:
         job = db.get(Job, job_id)
         if not job:
@@ -71,8 +72,23 @@ def create_match_report(
             scoring_status=result.scoring_status,
             breakdown=result.breakdown,
             llm_match_output=asdict(llm_output),
+            profile_snapshot=dict(profile_row.data),
+            job_snapshot={
+                "id": job.id,
+                "title": job.title,
+                "company": job.company,
+                "location": job.location,
+                "required": job.required,
+                "desirable": job.desirable,
+                "technical_stack": job.technical_stack,
+            },
+            rules_version="v1",
         )
         db.add(db_matching)
+        created_results.append(db_matching)
+
+    for rank, result in enumerate(sorted(created_results, key=lambda item: item.score or 0, reverse=True), start=1):
+        result.rank = rank
 
     db.commit()
     return {"report_id": report.id, "status": report.status}
@@ -119,6 +135,8 @@ def get_match_report(
                 "eligible": result.eligible,
                 "scoring_status": result.scoring_status,
                 "breakdown": result.breakdown,
+                "rank": result.rank,
+                "explanation": result.llm_match_output,
             }
             for result in results
         ],
