@@ -143,3 +143,13 @@ class CvTailoringOut(BaseModel):
     id: str
     matching_id: str
     download_url: str
+
+
+class CvMetadataOut(BaseModel):
+    id: str
+    request_id: str | None = None
+    matching_id: str
+    mode: str
+    status: str
+    target_job_ids: list[str]
+    download_url: str

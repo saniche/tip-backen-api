@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from auth import get_current_user
 from database import get_db
 from models import TailoredCVRecord, User
-from storage import download_markdown
+from storage import download_markdown, generate_temporary_download_url
 
 router = APIRouter(tags=["download"])
 
@@ -26,5 +26,8 @@ def download_tailored_cv(
     return Response(
         content=content,
         media_type="text/markdown",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Temporary-Download-URL": generate_temporary_download_url(record.blob_path),
+        },
     )

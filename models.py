@@ -169,9 +169,25 @@ class TailoredCVRecord(Base):
     __tablename__ = "tailored_cvs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    request_id: Mapped[str | None] = mapped_column(String, ForeignKey("cv_requests.id"), nullable=True, index=True)
     matching_id: Mapped[str] = mapped_column(String, ForeignKey("job_matchings.id"), index=True)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     blob_path: Mapped[str] = mapped_column(String)  # key/path in Azure Blob Storage
+    mode: Mapped[str] = mapped_column(String, default="per_job")
+    status: Mapped[str] = mapped_column(String, default="completed")
+    target_job_ids: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class CVRequest(Base):
+    __tablename__ = "cv_requests"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    matching_ids: Mapped[list] = mapped_column(JSON, default=list)
+    mode: Mapped[str] = mapped_column(String, default="per_job")
+    status: Mapped[str] = mapped_column(String, default="completed")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 

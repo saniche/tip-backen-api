@@ -24,7 +24,7 @@ except Exception:  # pragma: no cover - fallback for local/dev runs when emulato
 
 
 def _use_local_blob_store() -> bool:
-    return _blob_service_client is None
+    return _blob_service_client is None or _connection_string == "UseDevelopmentStorage=true"
 
 
 def _upload_local_blob(blob_path: str, content: str) -> str:
@@ -71,6 +71,14 @@ def download_markdown(blob_path: str) -> str:
         return _download_local_blob(blob_path)
     blob_client = container_client.get_blob_client(blob_path)
     return blob_client.download_blob().readall().decode("utf-8")
+
+
+def delete_blob(blob_path: str) -> None:
+    container_client = _get_container_client()
+    if container_client is None:
+        _LOCAL_BLOB_STORE.pop(blob_path, None)
+        return
+    container_client.delete_blob(blob_path)
 
 
 def build_blob_path(user_id: str, tailored_cv_id: str, filename: str) -> str:

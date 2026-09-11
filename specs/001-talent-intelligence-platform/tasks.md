@@ -115,14 +115,14 @@ contract, and integration coverage at affected boundaries.
 
 **Independent Test**: Generate a CV for a known match, verify it is grounded in the profile and selected job context, then retrieve a temporary owner-authorized download URL.
 
-- [ ] T040 [P] [US4] Write CV mode, ownership, deleted-job, mixed-owner, and no-fabrication service tests in `tests/unit/test_cv_service.py`
-- [ ] T041 [P] [US4] Write CV API contract tests for per-job/group-all requests, list/detail/delete, and download authorization in `tests/contract/test_cv_contract.py`
-- [ ] T042 [P] [US4] Write fake-AI and fake-blob CV integration tests, including safe background failures and expiring download links, in `tests/integration/test_cv_processing.py`
-- [ ] T043 [US4] Add CVRequest and expanded TailoredCV ownership, selected-result, mode, status, and target-job fields with migration in `models.py` and `alembic/versions/004_tailored_cvs.py`
-- [ ] T044 [US4] Add CV request mode, CV metadata, view, list, and temporary-download response schemas in `schemas.py`
-- [ ] T045 [US4] Implement grounded tailoring validation, per-job/group-all orchestration, markdown rendering, storage persistence, owner-only retrieval, and deletion in `cv_service.py` and `cv_tasks.py`
-- [ ] T046 [US4] Replace the preliminary CV routes with `/api/v1/cv` create, list, view, download, and delete routes in `cv_tailoring_router.py` and `download_router.py`
-- [ ] T047 [US4] Run the focused CV unit, contract, and integration tests from `tests/unit/test_cv_service.py`, `tests/contract/test_cv_contract.py`, and `tests/integration/test_cv_processing.py`
+- [x] T040 [P] [US4] Write CV mode, ownership, deleted-job, mixed-owner, and no-fabrication service tests in `tests/unit/test_cv_service.py`
+- [x] T041 [P] [US4] Write CV API contract tests for per-job/group-all requests, list/detail/delete, and download authorization in `tests/contract/test_cv_contract.py`
+- [x] T042 [P] [US4] Write fake-AI and fake-blob CV integration tests, including safe background failures and expiring download links, in `tests/integration/test_cv_processing.py`
+- [x] T043 [US4] Add CVRequest and expanded TailoredCV ownership, selected-result, mode, status, and target-job fields with migration in `models.py` and `alembic/versions/004_tailored_cvs.py`
+- [x] T044 [US4] Add CV request mode, CV metadata, view, list, and temporary-download response schemas in `schemas.py`
+- [x] T045 [US4] Implement grounded tailoring validation, per-job/group-all orchestration, markdown rendering, storage persistence, owner-only retrieval, and deletion in `cv_service.py` and `cv_tasks.py`
+- [x] T046 [US4] Replace the preliminary CV routes with `/api/v1/cv` create, list, view, download, and delete routes in `cv_tailoring_router.py` and `download_router.py`
+- [x] T047 [US4] Run the focused CV unit, contract, and integration tests from `tests/unit/test_cv_service.py`, `tests/contract/test_cv_contract.py`, and `tests/integration/test_cv_processing.py`
 
 **Checkpoint**: User Story 4 is independently usable and meets FR-017 through FR-020 with safe owner-only storage access.
 
