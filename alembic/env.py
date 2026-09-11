@@ -18,7 +18,7 @@ def run_migrations_online() -> None:
     configuration["sqlalchemy.url"] = os.environ.get("DATABASE_URL", configuration["sqlalchemy.url"])
     connectable = engine_from_config(configuration, prefix="sqlalchemy.", poolclass=pool.NullPool)
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=Base.metadata)
+        context.configure(connection=connection, target_metadata=Base.metadata, render_as_batch=connection.dialect.name == "sqlite")
         with context.begin_transaction():
             context.run_migrations()
 

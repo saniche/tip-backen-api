@@ -21,14 +21,16 @@ def upgrade() -> None:
         sa.Column("error", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True)),
     )
-    op.add_column("tailored_cvs", sa.Column("request_id", sa.String(), sa.ForeignKey("cv_requests.id"), nullable=True))
+    with op.batch_alter_table("tailored_cvs") as batch_op:
+        batch_op.add_column(sa.Column("request_id", sa.String(), sa.ForeignKey("cv_requests.id"), nullable=True))
     op.add_column("tailored_cvs", sa.Column("mode", sa.String(), nullable=True, server_default="per_job"))
     op.add_column("tailored_cvs", sa.Column("status", sa.String(), nullable=True, server_default="completed"))
     op.add_column("tailored_cvs", sa.Column("target_job_ids", sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:
-    op.drop_column("tailored_cvs", "request_id")
+    with op.batch_alter_table("tailored_cvs") as batch_op:
+        batch_op.drop_column("request_id")
     op.drop_table("cv_requests")
     op.drop_column("tailored_cvs", "target_job_ids")
     op.drop_column("tailored_cvs", "status")

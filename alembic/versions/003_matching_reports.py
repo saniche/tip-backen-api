@@ -4,7 +4,7 @@ from alembic import op
 
 
 revision = "003_matching_reports"
-down_revision = "001_initial_schema"
+down_revision = "002_jobs_and_interests"
 branch_labels = None
 depends_on = None
 
