@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -13,9 +15,10 @@ from serialization import dict_to_user_profile
 from storage import build_blob_path, upload_markdown
 
 router = APIRouter(tags=["cv-tailoring"])
+logger = logging.getLogger("tip-api")
 
 
-def _run_cv_tailoring(proc_job_id: str, user_id: str, matching_id: str, output_language: str) -> None:
+def _run_cv_tailoring(proc_job_id: str, user_id: str, matching_ids: list[str], mode: str, output_language: str) -> None:
     db = SessionLocal()
     proc_job = None
     try:
@@ -25,43 +28,50 @@ def _run_cv_tailoring(proc_job_id: str, user_id: str, matching_id: str, output_l
         proc_job.status = ProcessingJobStatus.RUNNING
         db.commit()
 
-        matching = db.get(JobMatchingResult, matching_id)
-        if matching is None:
+        matchings = [db.get(JobMatchingResult, matching_id) for matching_id in matching_ids]
+        if any(matching is None or matching.user_id != user_id for matching in matchings):
             raise ValueError("Matching result not found")
-        job = db.get(Job, matching.job_id)
-        profile_row = db.get(UserProfile, matching.profile_id)  # same version the match was scored against
-        if job is None or profile_row is None:
+        first_matching = matchings[0]
+        profile_row = db.get(UserProfile, first_matching.profile_id)
+        if profile_row is None:
             raise ValueError("Matching context not found")
         profile = dict_to_user_profile(profile_row.data)
-
-        job_data = JobData(
-            title=job.title,
-            required=job.required,
-            desirable=job.desirable,
-            technical_stack=job.technical_stack,
-            key_responsibilities=job.key_responsibilities,
-            summary=job.summary,
-        )
-
-        tailored = build_tailored_cv(profile, job_data, match_score=matching.score, output_language=output_language)
-        markdown = render_tailored_cv_markdown(tailored)
-
-        record = TailoredCVRecord(matching_id=matching.id, user_id=user_id, blob_path="")
-        db.add(record)
-        db.flush()  # assigns record.id before we build the blob path
-
-        blob_path = build_blob_path(user_id, record.id, suggest_filename(tailored))
-        upload_markdown(blob_path, markdown)
-        record.blob_path = blob_path
+        selected = matchings if mode == "per_job" else matchings[:1]
+        records = []
+        for matching in selected:
+            job = db.get(Job, matching.job_id)
+            if job is None:
+                raise ValueError("Matching context not found")
+            title = job.title
+            if mode == "group_all":
+                titles = [db.get(Job, item.job_id).title for item in matchings if db.get(Job, item.job_id)]
+                title = " / ".join(titles)
+            job_data = JobData(
+                title=title,
+                required=job.required,
+                desirable=job.desirable,
+                technical_stack=job.technical_stack,
+                key_responsibilities=job.key_responsibilities,
+                summary=job.summary,
+            )
+            tailored = build_tailored_cv(profile, job_data, match_score=matching.score, output_language=output_language)
+            record = TailoredCVRecord(matching_id=matching.id, user_id=user_id, blob_path="")
+            db.add(record)
+            db.flush()
+            blob_path = build_blob_path(user_id, record.id, suggest_filename(tailored))
+            upload_markdown(blob_path, render_tailored_cv_markdown(tailored))
+            record.blob_path = blob_path
+            records.append(record)
         db.commit()
 
         proc_job.status = ProcessingJobStatus.DONE
-        proc_job.result_id = record.id
+        proc_job.result_id = records[0].id
         db.commit()
     except Exception as e:  # noqa: BLE001 — surface via polled status
+        logger.exception("CV tailoring failed", extra={"processing_job_id": proc_job_id})
         if proc_job is not None:
             proc_job.status = ProcessingJobStatus.FAILED
-            proc_job.error = str(e)
+            proc_job.error = "CV generation failed"
             db.commit()
     finally:
         db.close()
@@ -75,8 +85,8 @@ def tailor_cv(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    matching = db.get(JobMatchingResult, payload.matching_id)
-    if not matching or matching.user_id != current_user.id:
+    matchings = [db.get(JobMatchingResult, matching_id) for matching_id in payload.matching_ids]
+    if any(matching is None or matching.user_id != current_user.id for matching in matchings):
         raise HTTPException(404, "Matching result not found")
 
     proc_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.CV_TAILOR)
@@ -84,7 +94,7 @@ def tailor_cv(
     db.commit()
 
     background_tasks.add_task(
-        _run_cv_tailoring, proc_job.id, current_user.id, matching.id, payload.output_language
+        _run_cv_tailoring, proc_job.id, current_user.id, payload.matching_ids, payload.mode, payload.output_language
     )
 
     return ProcessingJobOut(id=proc_job.id, status=proc_job.status.value, result_id=proc_job.result_id)
