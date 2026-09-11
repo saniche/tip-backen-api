@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
-from models import Job, JobMatchingResult, MatchReport, User, UserProfile
 from matching_service import create_match_report as persist_match_report
+from models import JobMatchingResult, MatchReport, User
 from schemas import JobMatchingOut, JobMatchingRequest
 
 router = APIRouter(prefix="/matching", tags=["matching"])

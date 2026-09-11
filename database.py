@@ -6,9 +6,10 @@ DATABASE_URL example (Azure Database for PostgreSQL Flexible Server):
 """
 
 import os
+
 from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+pysqlite:///./jobprocess.db")
 

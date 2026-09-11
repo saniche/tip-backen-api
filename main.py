@@ -5,15 +5,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from database import Base, engine
-from errors import AppException, translate_exception
 import auth_router
 import cv_tailoring_router
 import download_router
 import job_matching_router
 import job_normalizer
-import profile_builder_router
 import processing_jobs_router
+import profile_builder_router
+from database import Base, engine
+from errors import AppException, translate_exception
 
 app = FastAPI(title="Job Search Aggregator API")
 

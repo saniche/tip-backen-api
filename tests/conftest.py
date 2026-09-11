@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 
 import cv_tailoring_router
 import job_normalizer
+import profile_builder_router
 from database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
 from main import app
-import profile_builder_router
 
 
 @pytest.fixture(autouse=True)

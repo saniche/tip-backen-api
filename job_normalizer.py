@@ -6,9 +6,8 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import SessionLocal, get_db
-from models import Job, JobInterest, User
-from models import ProcessingJob, ProcessingJobStatus, ProcessingJobType
 from job_service import normalize_job_content
+from models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
 from schemas import JobNormalizeOut, JobNormalizeRequest
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])

@@ -1,8 +1,8 @@
 """Record the tailored CV request and metadata contract."""
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "004_tailored_cvs"
 down_revision = "003_matching_reports"

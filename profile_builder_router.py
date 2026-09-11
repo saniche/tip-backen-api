@@ -5,10 +5,18 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import SessionLocal, get_db
-from models import ProfileFileStatus, ProfileFragment, ProfileSession, ProfileSessionStatus, User, UserFile, UserProfile
-from processing_service import create_processing_job, complete_processing_job, fail_processing_job, start_processing_job
-from models import ProcessingJobType
+from models import (
+    ProcessingJobType,
+    ProfileFileStatus,
+    ProfileFragment,
+    ProfileSession,
+    ProfileSessionStatus,
+    User,
+    UserFile,
+    UserProfile,
+)
 from pipeline.profile_builder import extract_profile
+from processing_service import complete_processing_job, create_processing_job, fail_processing_job, start_processing_job
 from profile_service import merge_profile_values
 
 router = APIRouter(prefix="", tags=["profile"])

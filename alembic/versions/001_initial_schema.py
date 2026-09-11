@@ -1,8 +1,8 @@
 """Create the initial Talent Intelligence Platform schema."""
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 revision = "001_initial_schema"
 down_revision = None

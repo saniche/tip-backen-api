@@ -5,15 +5,25 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
+from cv_service import validate_cv_selection
 from database import SessionLocal, get_db
-from models import CVRequest, Job, JobMatchingResult, ProcessingJob, ProcessingJobStatus, ProcessingJobType, TailoredCVRecord, User, UserProfile
+from models import (
+    CVRequest,
+    Job,
+    JobMatchingResult,
+    ProcessingJob,
+    ProcessingJobStatus,
+    ProcessingJobType,
+    TailoredCVRecord,
+    User,
+    UserProfile,
+)
 from pipeline.cv_tailoring import build_tailored_cv
 from pipeline.llm_matching import JobData
 from pipeline.markdown_writer import render_tailored_cv_markdown, suggest_filename
 from schemas import CvTailoringRequest, ProcessingJobOut
 from serialization import dict_to_user_profile
 from storage import build_blob_path, generate_temporary_download_url, upload_markdown
-from cv_service import validate_cv_selection
 
 router = APIRouter(tags=["cv-tailoring"])
 logger = logging.getLogger("tip-api")
@@ -80,7 +90,7 @@ def _run_cv_tailoring(proc_job_id: str, user_id: str, matching_ids: list[str], m
         if request:
             request.status = "completed"
         db.commit()
-    except Exception as e:  # noqa: BLE001 — surface via polled status
+    except Exception:  # noqa: BLE001 — surface via polled status
         logger.exception("CV tailoring failed", extra={"processing_job_id": proc_job_id})
         if proc_job is not None:
             proc_job.status = ProcessingJobStatus.FAILED

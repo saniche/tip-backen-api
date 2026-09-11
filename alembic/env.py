@@ -1,11 +1,10 @@
-from logging.config import fileConfig
 import os
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from alembic import context
 from database import Base
-import models
+
 
 def run_migrations_offline() -> None:
     url = os.environ.get("DATABASE_URL", context.config.get_main_option("sqlalchemy.url"))

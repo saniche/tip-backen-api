@@ -1,6 +1,5 @@
 """Record the matching report snapshot contract."""
 
-from alembic import op
 
 
 revision = "003_matching_reports"
