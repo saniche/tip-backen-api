@@ -2,7 +2,9 @@ import time
 
 
 def test_job_normalization_deduplicates_and_exposes_structured_defaults(client):
-    token = client.post("/api/v1/auth/register", json={"email": "job-int@example.com", "password": "password123"}).json()["access_token"]
+    token = client.post(
+        "/api/v1/auth/register", json={"email": "job-int@example.com", "password": "password123"}
+    ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     payload = {
         "url": "https://jobs.test/integration",

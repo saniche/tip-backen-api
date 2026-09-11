@@ -57,7 +57,9 @@ class ProfileSession(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    status: Mapped[ProfileSessionStatus] = mapped_column(Enum(ProfileSessionStatus), default=ProfileSessionStatus.CREATED)
+    status: Mapped[ProfileSessionStatus] = mapped_column(
+        Enum(ProfileSessionStatus), default=ProfileSessionStatus.CREATED
+    )
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
@@ -213,7 +215,9 @@ class ProcessingJob(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     job_type: Mapped[ProcessingJobType] = mapped_column(Enum(ProcessingJobType))
     status: Mapped[ProcessingJobStatus] = mapped_column(Enum(ProcessingJobStatus), default=ProcessingJobStatus.PENDING)
-    result_id: Mapped[str | None] = mapped_column(String, nullable=True)  # points at UserProfile.id or TailoredCVRecord.id
+    result_id: Mapped[str | None] = mapped_column(
+        String, nullable=True
+    )  # points at UserProfile.id or TailoredCVRecord.id
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

@@ -28,7 +28,7 @@ def merge_profile_values(existing_data, existing_evidence, fragments):
             merged[key] = value
     for fragment in fragments:
         source = fragment.get("evidence_type") or "extracted"
-        for key in (fragment.get("data") or {}):
+        for key in fragment.get("data") or {}:
             if evidence.get(key) != "user_edited":
                 evidence[key] = source
     return merged, evidence

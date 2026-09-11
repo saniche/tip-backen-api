@@ -1,6 +1,10 @@
 def test_matching_contract_ranks_results_and_denies_other_owner(client):
-    first = client.post("/api/v1/auth/register", json={"email": "match-contract@example.com", "password": "password123"}).json()
-    second = client.post("/api/v1/auth/register", json={"email": "match-other@example.com", "password": "password123"}).json()
+    first = client.post(
+        "/api/v1/auth/register", json={"email": "match-contract@example.com", "password": "password123"}
+    ).json()
+    second = client.post(
+        "/api/v1/auth/register", json={"email": "match-other@example.com", "password": "password123"}
+    ).json()
     headers = {"Authorization": f"Bearer {first['access_token']}"}
     client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python", "FastAPI"]}})
     job = client.post(

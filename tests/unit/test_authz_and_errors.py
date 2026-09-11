@@ -19,7 +19,6 @@ def test_generate_temporary_download_url_includes_signed_blob_url():
 
 
 def test_require_owner_or_admin_rejects_non_owners():
-    owner = DummyUser("owner-1")
     other = DummyUser("other-1")
     with pytest.raises(HTTPException) as exc:
         require_owner_or_admin(owner_id="owner-1", current_user=other)

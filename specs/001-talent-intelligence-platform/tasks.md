@@ -136,7 +136,7 @@ contract, and integration coverage at affected boundaries.
 - [x] T049 [P] Add the complete profile-to-CV acceptance scenario in `tests/integration/test_end_to_end_platform.py`
 - [x] T050 [P] Add migration-upgrade and schema-constraint coverage in `tests/integration/test_migrations.py`
 - [x] T051 Document local configuration, permitted file types, environment variables, and focused test commands in `README.md` and `.env.example`
-- [ ] T052 Run formatting, static analysis, all pytest suites, migration upgrade, and the Docker build using `pyproject.toml`, `alembic.ini`, `tests/`, and `Dockerfile`
+- [x] T052 Run formatting, static analysis, all pytest suites, migration upgrade, and the Docker build using `pyproject.toml`, `alembic.ini`, `tests/`, and `Dockerfile`
 
 ---
 
@@ -184,19 +184,19 @@ delivered by US1 and US2. US4 needs completed match results from US3.
 - [x] T057 Replace the single-job synchronous matcher with owner-scoped ranked match reports supporting immutable results and list, view, and delete operations per FR-013, FR-015, and FR-016 (contradicts)
 - [x] T058 Implement the `/cv` request, per-job/group-all generation, owner-scoped list/detail/delete operations, and authorized download contract per FR-017 and FR-019 (contradicts)
 - [x] T059 Centralize ownership authorization, common error schemas, and provider/storage failure sanitization across externally reachable routes per FR-001 and FR-020 (partial)
-- [ ] T060 Add the missing focused unit, contract, integration, migration, observability, and end-to-end tests required by Constitution II, Constitution III, and T012/T048-T052 (missing)
+- [x] T060 Add the missing focused unit, contract, integration, migration, observability, and end-to-end tests required by Constitution II, Constitution III, and T012/T048-T052 (missing)
 
 ---
 
 ## Phase 9: Convergence
 
 - [x] T061 Preserve profile evidence metadata and user-edited precedence across subsequent successful document merges per FR-004, FR-005, and FR-006 (partial)
-- [ ] T062 Complete structured asynchronous job normalization, including requirements, responsibilities, saved-date filtering, pagination, and the planned response contract per FR-008 and FR-010 (partial)
+- [x] T062 Complete structured asynchronous job normalization, including requirements, responsibilities, saved-date filtering, pagination, and the planned response contract per FR-008 and FR-010 (partial)
 - [x] T063 Implement validated match explanations, deterministic result classification, immutable profile/job context, and scoring metadata per FR-013, FR-014, and FR-015 (partial)
 - [x] T064 Implement separate-job and group-all CV request modes with grounding validation and selected-job context per FR-017 and FR-018 (partial)
 - [x] T065 Harden CV storage/download lifecycle and sanitize background failure details, with owner-scoped contract and integration coverage per FR-019, FR-020, and Constitution III (partial)
 - [x] T066 Add the missing Alembic revisions and profile, job, matching, and CV boundary test suites required by the plan, Constitution II/III, and T015/T021/T024/T029/T032/T033/T039/T040-T047 (missing)
-- [ ] T067 Add observability, end-to-end, migration, configuration documentation, static-analysis, and deployment validation required by T048-T052 and SC-001/SC-002/SC-004/SC-005/SC-006 (missing)
+- [x] T067 Add observability, end-to-end, migration, configuration documentation, static-analysis, and deployment validation required by T048-T052 and SC-001/SC-002/SC-004/SC-005/SC-006 (missing)
 
 ---
 
@@ -204,5 +204,5 @@ delivered by US1 and US2. US4 needs completed match results from US3.
 
 - [x] T068 Implement asynchronous job normalization with a persisted processing resource, structured extraction, saved-date filtering, pagination, and the planned polling response contract per FR-008, FR-010, and plan: BackgroundTasks (partial)
 - [x] T069 Add PostgreSQL/fake-AI job normalization boundary coverage and replace the no-op `002_jobs_and_interests.py` revision with substantive jobs and interests schema migration per T024/T025 and plan: PostgreSQL boundary (partial)
-- [ ] T070 Resolve repository-wide Ruff findings and run the Docker build in a Docker-enabled environment as required by T052 and Constitution II/III (partial)
-- [ ] T071 Complete the final validation matrix and reconcile residual task tracking after asynchronous normalization, static analysis, migration, and Docker validation per T060/T067 (partial)
+- [x] T070 Resolve repository-wide Ruff findings and run the Docker build in a Docker-enabled environment as required by T052 and Constitution II/III (partial)
+- [x] T071 Complete the final validation matrix and reconcile residual task tracking after asynchronous normalization, static analysis, migration, and Docker validation per T060/T067 (partial)

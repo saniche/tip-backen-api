@@ -66,9 +66,11 @@ def _view(report: MatchReport, results: list[JobMatchingResult]) -> MatchReportV
 def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReportView:
     if not job_ids:
         raise ValueError("At least one job id is required")
-    profile = db.execute(
-        select(UserProfile).where(UserProfile.user_id == user_id).order_by(desc(UserProfile.created_at))
-    ).scalars().first()
+    profile = (
+        db.execute(select(UserProfile).where(UserProfile.user_id == user_id).order_by(desc(UserProfile.created_at)))
+        .scalars()
+        .first()
+    )
     if profile is None:
         raise ValueError("Profile not found")
     jobs = {job.id: job for job in db.execute(select(Job).where(Job.id.in_(job_ids))).scalars().all()}
@@ -94,7 +96,15 @@ def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchR
             breakdown={"groups": scored.breakdown, "effective_weights": scored.effective_weights},
             llm_match_output=asdict(llm_output),
             profile_snapshot=dict(profile.data),
-            job_snapshot={"id": job.id, "title": job.title, "company": job.company, "location": job.location, "required": job.required, "desirable": job.desirable, "technical_stack": job.technical_stack},
+            job_snapshot={
+                "id": job.id,
+                "title": job.title,
+                "company": job.company,
+                "location": job.location,
+                "required": job.required,
+                "desirable": job.desirable,
+                "technical_stack": job.technical_stack,
+            },
             rules_version="v1",
         )
         db.add(result)
@@ -106,8 +116,18 @@ def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchR
 
 
 def list_match_reports(db: Session, user_id: str) -> list[MatchReportView]:
-    reports = db.execute(select(MatchReport).where(MatchReport.user_id == user_id).order_by(desc(MatchReport.created_at))).scalars().all()
-    return [_view(report, db.execute(select(JobMatchingResult).where(JobMatchingResult.report_id == report.id)).scalars().all()) for report in reports]
+    reports = (
+        db.execute(select(MatchReport).where(MatchReport.user_id == user_id).order_by(desc(MatchReport.created_at)))
+        .scalars()
+        .all()
+    )
+    return [
+        _view(
+            report,
+            db.execute(select(JobMatchingResult).where(JobMatchingResult.report_id == report.id)).scalars().all(),
+        )
+        for report in reports
+    ]
 
 
 def get_match_report(db: Session, user_id: str, report_id: str) -> MatchReportView:

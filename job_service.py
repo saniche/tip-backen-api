@@ -7,7 +7,9 @@ def normalize_job_content(content: str) -> dict:
     skill_names = sorted(
         {
             match.group(0)
-            for match in re.finditer(r"\b(?:Python|FastAPI|SQL|PostgreSQL|Java|JavaScript|TypeScript|AWS|Azure)\b", content or "", re.I)
+            for match in re.finditer(
+                r"\b(?:Python|FastAPI|SQL|PostgreSQL|Java|JavaScript|TypeScript|AWS|Azure)\b", content or "", re.I
+            )
         }
     )
     return {

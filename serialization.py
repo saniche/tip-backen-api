@@ -19,10 +19,7 @@ def dict_to_user_profile(d: dict) -> UserProfile:
 
     raw_skills = d.get("TechnicalSkills", d.get("skills", []))
     if isinstance(raw_skills, list):
-        technical_skills = [
-            SkillEntry(**s) if isinstance(s, dict) else SkillEntry(Name=str(s))
-            for s in raw_skills
-        ]
+        technical_skills = [SkillEntry(**s) if isinstance(s, dict) else SkillEntry(Name=str(s)) for s in raw_skills]
     else:
         technical_skills = [SkillEntry(Name=str(raw_skills))] if raw_skills else []
 

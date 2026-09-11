@@ -10,7 +10,9 @@ def test_match_report_creation_and_ownership(database_session):
     database_session.commit()
     database_session.refresh(user)
 
-    profile = UserProfile(user_id=user.id, data={"summary": "Python engineer", "skills": ["Python", "FastAPI"]}, output_language="English")
+    profile = UserProfile(
+        user_id=user.id, data={"summary": "Python engineer", "skills": ["Python", "FastAPI"]}, output_language="English"
+    )
     database_session.add(profile)
     database_session.commit()
 

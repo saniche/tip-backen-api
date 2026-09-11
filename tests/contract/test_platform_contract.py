@@ -11,6 +11,8 @@ def test_authentication_and_invalid_token(client):
 
 
 def test_error_shape_for_missing_resource(client, user):
-    response = client.get("/api/v1/processing-jobs/missing", headers={"Authorization": f"Bearer {user['access_token']}"})
+    response = client.get(
+        "/api/v1/processing-jobs/missing", headers={"Authorization": f"Bearer {user['access_token']}"}
+    )
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "RESOURCE_NOT_FOUND"

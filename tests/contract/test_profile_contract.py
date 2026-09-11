@@ -1,5 +1,7 @@
 def test_profile_session_upload_and_edit_preserves_profile(client):
-    token = client.post("/api/v1/auth/register", json={"email": "profile@example.com", "password": "password123"}).json()["access_token"]
+    token = client.post(
+        "/api/v1/auth/register", json={"email": "profile@example.com", "password": "password123"}
+    ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers)
     assert session.status_code == 201

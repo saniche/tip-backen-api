@@ -27,7 +27,9 @@ def safe_message(value: Any, fallback: str = "The request could not be processed
     if not message:
         return fallback
     lowered = message.lower()
-    if any(marker in lowered for marker in ["api key", "secret", "token", "password", "authorization", "azure", "openai"]):
+    if any(
+        marker in lowered for marker in ["api key", "secret", "token", "password", "authorization", "azure", "openai"]
+    ):
         return fallback
     if len(message) > 280:
         return fallback
@@ -52,7 +54,11 @@ def translate_exception(exc: Exception) -> AppException:
 
     lowered = str(exc).lower()
     if any(marker in lowered for marker in ["openai", "api key", "rate limit", "llm", "provider"]):
-        return AppException("External processing failed. Please try again later.", code="SERVICE_UNAVAILABLE", status_code=502)
+        return AppException(
+            "External processing failed. Please try again later.", code="SERVICE_UNAVAILABLE", status_code=502
+        )
     if any(marker in lowered for marker in ["blob", "storage", "azure"]):
-        return AppException("Storage is temporarily unavailable. Please try again later.", code="SERVICE_UNAVAILABLE", status_code=503)
+        return AppException(
+            "Storage is temporarily unavailable. Please try again later.", code="SERVICE_UNAVAILABLE", status_code=503
+        )
     return AppException("An unexpected error occurred.", code="INTERNAL_ERROR", status_code=500)

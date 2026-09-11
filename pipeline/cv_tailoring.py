@@ -16,12 +16,17 @@ def build_tailored_cv(profile, job_data, match_score: int, output_language: str 
     skill_names = [str(item.Name if hasattr(item, "Name") else item) for item in skills]
     return TailoredCv(
         target_role=job_data.title or "Target Role",
-        summary=f"Tailored for {job_data.title or 'target role'} using the current profile and a match score of {match_score}.",
+        summary=(
+            f"Tailored for {job_data.title or 'target role'} using the current profile "
+            f"and a match score of {match_score}."
+        ),
         experience=[
             f"{item.Title or 'Experience'} at {item.Company or 'previous employer'}"
             for item in getattr(profile, "WorkExperiences", []) or []
         ],
-        education=[str(item.Degree or item.Institution or "Education") for item in getattr(profile, "Education", []) or []],
+        education=[
+            str(item.Degree or item.Institution or "Education") for item in getattr(profile, "Education", []) or []
+        ],
         certifications=[str(item.Name or "Certification") for item in getattr(profile, "Certifications", []) or []],
         skills=skill_names[:12],
     )

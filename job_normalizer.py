@@ -97,18 +97,34 @@ def list_jobs(
     current_user: User = Depends(get_current_user),
 ):
     query = select(Job).order_by(desc(Job.created_at)).offset((page - 1) * limit).limit(limit)
-    if title: query = query.where(Job.title.ilike(f"%{title}%"))
-    if company: query = query.where(Job.company.ilike(f"%{company}%"))
-    if location: query = query.where(Job.location.ilike(f"%{location}%"))
-    if saved_after: query = query.where(Job.created_at >= saved_after)
-    if saved_before: query = query.where(Job.created_at <= saved_before)
-    return [{"id": job.id, "url": job.url, "title": job.title, "company": job.company, "location": job.location, "created_at": job.created_at} for job in db.execute(query).scalars()]
+    if title:
+        query = query.where(Job.title.ilike(f"%{title}%"))
+    if company:
+        query = query.where(Job.company.ilike(f"%{company}%"))
+    if location:
+        query = query.where(Job.location.ilike(f"%{location}%"))
+    if saved_after:
+        query = query.where(Job.created_at >= saved_after)
+    if saved_before:
+        query = query.where(Job.created_at <= saved_before)
+    return [
+        {
+            "id": job.id,
+            "url": job.url,
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "created_at": job.created_at,
+        }
+        for job in db.execute(query).scalars()
+    ]
 
 
 @router.get("/{job_id}")
 def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.get(Job, job_id)
-    if not job: raise HTTPException(404, "Job not found")
+    if not job:
+        raise HTTPException(404, "Job not found")
     return {
         "id": job.id,
         "url": job.url,
@@ -126,16 +142,26 @@ def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Ses
 
 @router.post("/{job_id}/interest", status_code=201)
 def interest(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not db.get(Job, job_id): raise HTTPException(404, "Job not found")
-    existing = db.execute(select(JobInterest).where(JobInterest.user_id == current_user.id, JobInterest.job_id == job_id)).scalar_one_or_none()
-    if existing: return {"id": existing.id, "status": "existing"}
-    item = JobInterest(user_id=current_user.id, job_id=job_id); db.add(item); db.commit(); db.refresh(item)
+    if not db.get(Job, job_id):
+        raise HTTPException(404, "Job not found")
+    existing = db.execute(
+        select(JobInterest).where(JobInterest.user_id == current_user.id, JobInterest.job_id == job_id)
+    ).scalar_one_or_none()
+    if existing:
+        return {"id": existing.id, "status": "existing"}
+    item = JobInterest(user_id=current_user.id, job_id=job_id)
+    db.add(item)
+    db.commit()
+    db.refresh(item)
     return {"id": item.id, "status": "created"}
 
 
 @router.delete("/{job_id}", status_code=204)
 def delete_job(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.get(Job, job_id)
-    if not job: raise HTTPException(404, "Job not found")
-    if job.submitter_id != current_user.id and current_user.role != "admin": raise HTTPException(403, "Forbidden")
-    db.delete(job); db.commit()
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job.submitter_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(403, "Forbidden")
+    db.delete(job)
+    db.commit()

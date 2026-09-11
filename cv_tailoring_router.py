@@ -29,7 +29,9 @@ router = APIRouter(tags=["cv-tailoring"])
 logger = logging.getLogger("tip-api")
 
 
-def _run_cv_tailoring(proc_job_id: str, user_id: str, matching_ids: list[str], mode: str, output_language: str, request_id: str) -> None:
+def _run_cv_tailoring(
+    proc_job_id: str, user_id: str, matching_ids: list[str], mode: str, output_language: str, request_id: str
+) -> None:
     db = SessionLocal()
     proc_job = None
     try:
@@ -117,13 +119,21 @@ def tailor_cv(
         raise HTTPException(404, "Matching result not found")
 
     proc_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.CV_TAILOR)
-    cv_request = CVRequest(user_id=current_user.id, matching_ids=payload.matching_ids, mode=payload.mode, status="processing")
+    cv_request = CVRequest(
+        user_id=current_user.id, matching_ids=payload.matching_ids, mode=payload.mode, status="processing"
+    )
     db.add(cv_request)
     db.add(proc_job)
     db.commit()
 
     background_tasks.add_task(
-        _run_cv_tailoring, proc_job.id, current_user.id, payload.matching_ids, payload.mode, payload.output_language, cv_request.id
+        _run_cv_tailoring,
+        proc_job.id,
+        current_user.id,
+        payload.matching_ids,
+        payload.mode,
+        payload.output_language,
+        cv_request.id,
     )
 
     return ProcessingJobOut(id=proc_job.id, status=proc_job.status.value, result_id=proc_job.result_id)
@@ -131,9 +141,15 @@ def tailor_cv(
 
 @router.get("/cv")
 def list_cvs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    cvs = db.execute(
-        select(TailoredCVRecord).where(TailoredCVRecord.user_id == current_user.id).order_by(desc(TailoredCVRecord.created_at))
-    ).scalars().all()
+    cvs = (
+        db.execute(
+            select(TailoredCVRecord)
+            .where(TailoredCVRecord.user_id == current_user.id)
+            .order_by(desc(TailoredCVRecord.created_at))
+        )
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": item.id,

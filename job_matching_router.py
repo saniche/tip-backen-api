@@ -37,7 +37,13 @@ def list_match_reports(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    reports = db.execute(select(MatchReport).where(MatchReport.user_id == current_user.id).order_by(desc(MatchReport.created_at))).scalars().all()
+    reports = (
+        db.execute(
+            select(MatchReport).where(MatchReport.user_id == current_user.id).order_by(desc(MatchReport.created_at))
+        )
+        .scalars()
+        .all()
+    )
     return [
         {
             "id": report.id,
@@ -59,9 +65,15 @@ def get_match_report(
     if not report or report.user_id != current_user.id:
         raise HTTPException(404, "Match report not found")
 
-    results = db.execute(
-        select(JobMatchingResult).where(JobMatchingResult.report_id == report.id).order_by(desc(JobMatchingResult.score))
-    ).scalars().all()
+    results = (
+        db.execute(
+            select(JobMatchingResult)
+            .where(JobMatchingResult.report_id == report.id)
+            .order_by(desc(JobMatchingResult.score))
+        )
+        .scalars()
+        .all()
+    )
     return {
         "id": report.id,
         "status": report.status,
@@ -106,7 +118,15 @@ def match_job(
     request = MatchCreateRequest(job_ids=[payload.job_id])
     response = create_match_report(request, current_user, db)
     report_id = response["report_id"]
-    result = db.execute(select(JobMatchingResult).where(JobMatchingResult.report_id == report_id).order_by(desc(JobMatchingResult.score))).scalars().first()
+    result = (
+        db.execute(
+            select(JobMatchingResult)
+            .where(JobMatchingResult.report_id == report_id)
+            .order_by(desc(JobMatchingResult.score))
+        )
+        .scalars()
+        .first()
+    )
     if result is None:
         raise HTTPException(404, "Matching result not found")
     return JobMatchingOut(

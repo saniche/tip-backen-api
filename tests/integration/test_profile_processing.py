@@ -2,7 +2,9 @@ import time
 
 
 def test_profile_processing_completes_and_preserves_edit(client):
-    token = client.post("/api/v1/auth/register", json={"email": "profile-int@example.com", "password": "password123"}).json()["access_token"]
+    token = client.post(
+        "/api/v1/auth/register", json={"email": "profile-int@example.com", "password": "password123"}
+    ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
 

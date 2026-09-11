@@ -23,7 +23,11 @@ def upgrade() -> None:
         "profile_sessions",
         sa.Column("id", sa.String(), primary_key=True),
         sa.Column("user_id", sa.String(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("status", sa.Enum("CREATED", "PROCESSING", "COMPLETED", "FAILED", name="profilesessionstatus"), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("CREATED", "PROCESSING", "COMPLETED", "FAILED", name="profilesessionstatus"),
+            nullable=False,
+        ),
         sa.Column("error", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True)),
         sa.Column("updated_at", sa.DateTime(timezone=True)),
@@ -64,7 +68,9 @@ def upgrade() -> None:
         sa.Column("filename", sa.String(), nullable=False),
         sa.Column("content_type", sa.String(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("status", sa.Enum("PENDING", "PROCESSING", "COMPLETED", "FAILED", name="profilefilestatus"), nullable=False),
+        sa.Column(
+            "status", sa.Enum("PENDING", "PROCESSING", "COMPLETED", "FAILED", name="profilefilestatus"), nullable=False
+        ),
         sa.Column("error", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True)),
     )
@@ -124,8 +130,12 @@ def upgrade() -> None:
         "processing_jobs",
         sa.Column("id", sa.String(), primary_key=True),
         sa.Column("user_id", sa.String(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("job_type", sa.Enum("PROFILE_BUILD", "JOB_NORMALIZE", "CV_TAILOR", name="processingjobtype"), nullable=False),
-        sa.Column("status", sa.Enum("PENDING", "RUNNING", "DONE", "FAILED", name="processingjobstatus"), nullable=False),
+        sa.Column(
+            "job_type", sa.Enum("PROFILE_BUILD", "JOB_NORMALIZE", "CV_TAILOR", name="processingjobtype"), nullable=False
+        ),
+        sa.Column(
+            "status", sa.Enum("PENDING", "RUNNING", "DONE", "FAILED", name="processingjobstatus"), nullable=False
+        ),
         sa.Column("result_id", sa.String()),
         sa.Column("error", sa.Text()),
         sa.Column("created_at", sa.DateTime(timezone=True)),
@@ -134,5 +144,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    for table in ("processing_jobs", "tailored_cvs", "job_matchings", "match_reports", "job_interests", "profile_fragments", "user_files", "user_profiles", "jobs", "profile_sessions", "users"):
+    for table in (
+        "processing_jobs",
+        "tailored_cvs",
+        "job_matchings",
+        "match_reports",
+        "job_interests",
+        "profile_fragments",
+        "user_files",
+        "user_profiles",
+        "jobs",
+        "profile_sessions",
+        "users",
+    ):
         op.drop_table(table)

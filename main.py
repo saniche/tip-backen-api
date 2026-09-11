@@ -22,6 +22,7 @@ logger = logging.getLogger("tip-api")
 # Dev convenience only — use Alembic migrations instead of create_all once this runs anywhere real.
 Base.metadata.create_all(bind=engine)
 
+
 @app.middleware("http")
 async def request_context(request: Request, call_next):
     request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -47,18 +48,38 @@ async def unhandled_error(request: Request, exc: Exception):
     translated = translate_exception(exc)
     return JSONResponse(
         status_code=translated.status_code,
-        content={"error": {"code": translated.code, "message": translated.message, "details": translated.details, "request_id": request_id}},
+        content={
+            "error": {
+                "code": translated.code,
+                "message": translated.message,
+                "details": translated.details,
+                "request_id": request_id,
+            }
+        },
     )
 
 
 @app.exception_handler(HTTPException)
 async def http_error(request: Request, exc: HTTPException):
-    code_by_status = {401: "UNAUTHORIZED", 403: "FORBIDDEN", 404: "RESOURCE_NOT_FOUND", 409: "CONFLICT", 422: "VALIDATION_ERROR"}
+    code_by_status = {
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "RESOURCE_NOT_FOUND",
+        409: "CONFLICT",
+        422: "VALIDATION_ERROR",
+    }
     request_id = request.headers.get("X-Request-ID")
     return JSONResponse(
         status_code=exc.status_code,
         headers=exc.headers,
-        content={"error": {"code": code_by_status.get(exc.status_code, "VALIDATION_ERROR"), "message": str(exc.detail), "details": None, "request_id": request_id}},
+        content={
+            "error": {
+                "code": code_by_status.get(exc.status_code, "VALIDATION_ERROR"),
+                "message": str(exc.detail),
+                "details": None,
+                "request_id": request_id,
+            }
+        },
     )
 
 

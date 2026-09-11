@@ -49,9 +49,11 @@ def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) 
             db.add(ProfileFragment(file_id=file.id, data=fragment_data, evidence_type="extracted"))
             fragments.append({"data": fragment_data, "evidence_type": "extracted"})
             file.status = ProfileFileStatus.COMPLETED
-        previous = db.execute(
-            select(UserProfile).where(UserProfile.user_id == user_id).order_by(desc(UserProfile.created_at))
-        ).scalars().first()
+        previous = (
+            db.execute(select(UserProfile).where(UserProfile.user_id == user_id).order_by(desc(UserProfile.created_at)))
+            .scalars()
+            .first()
+        )
         previous_data = previous.data if previous else {}
         previous_evidence = previous.evidence if previous else {}
         merged, evidence = merge_profile_values(previous_data, previous_evidence, fragments)
@@ -72,9 +74,7 @@ def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) 
 
 
 @router.post("/profile/sessions", status_code=201)
-def create_profile_session(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
-):
+def create_profile_session(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = ProfileSession(user_id=current_user.id)
     db.add(session)
     db.commit()
@@ -93,12 +93,22 @@ async def upload_profile_file(
     session = db.get(ProfileSession, session_id)
     if not session or session.user_id != current_user.id:
         raise HTTPException(404, "Profile session not found")
-    if file.content_type not in {"application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"}:
+    if file.content_type not in {
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "text/plain",
+    }:
         raise HTTPException(422, "Unsupported file type")
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(422, "File exceeds maximum size")
-    user_file = UserFile(user_id=current_user.id, session_id=session.id, filename=file.filename or "document", content_type=file.content_type, content=content.decode("utf-8", errors="replace"))
+    user_file = UserFile(
+        user_id=current_user.id,
+        session_id=session.id,
+        filename=file.filename or "document",
+        content_type=file.content_type,
+        content=content.decode("utf-8", errors="replace"),
+    )
     db.add(user_file)
     processing_job = create_processing_job(db, current_user.id, ProcessingJobType.PROFILE_BUILD)
     db.commit()
@@ -112,22 +122,43 @@ def get_profile_session(session_id: str, current_user: User = Depends(get_curren
     if not session or session.user_id != current_user.id:
         raise HTTPException(404, "Profile session not found")
     files = db.execute(select(UserFile).where(UserFile.session_id == session.id)).scalars().all()
-    return {"id": session.id, "status": session.status.value, "files": [{"id": item.id, "status": item.status.value, "error": item.error} for item in files]}
+    return {
+        "id": session.id,
+        "status": session.status.value,
+        "files": [{"id": item.id, "status": item.status.value, "error": item.error} for item in files],
+    }
 
 
 @router.get("/profile")
 def get_profile(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    profile = db.execute(
-        select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))
-    ).scalars().first()
+    profile = (
+        db.execute(
+            select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))
+        )
+        .scalars()
+        .first()
+    )
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
-    return {"id": profile.id, "user_id": profile.user_id, "data": profile.data, "output_language": profile.output_language}
+    return {
+        "id": profile.id,
+        "user_id": profile.user_id,
+        "data": profile.data,
+        "output_language": profile.output_language,
+    }
 
 
 @router.put("/profile")
-def update_profile(payload: ProfileUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    profile = db.execute(select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))).scalars().first()
+def update_profile(
+    payload: ProfileUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    profile = (
+        db.execute(
+            select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))
+        )
+        .scalars()
+        .first()
+    )
     if profile is None:
         profile = UserProfile(user_id=current_user.id, data={}, evidence={}, output_language=payload.output_language)
         db.add(profile)
@@ -143,4 +174,9 @@ def update_profile(payload: ProfileUpdate, current_user: User = Depends(get_curr
     profile.output_language = payload.output_language
     db.commit()
     db.refresh(profile)
-    return {"id": profile.id, "user_id": profile.user_id, "data": profile.data, "output_language": profile.output_language}
+    return {
+        "id": profile.id,
+        "user_id": profile.user_id,
+        "data": profile.data,
+        "output_language": profile.output_language,
+    }

@@ -1,7 +1,5 @@
 """Record the matching report snapshot contract."""
 
-
-
 revision = "003_matching_reports"
 down_revision = "002_jobs_and_interests"
 branch_labels = None
