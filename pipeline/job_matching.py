@@ -10,6 +10,7 @@ class MatchResult:
     eligible: bool
     scoring_status: str
     breakdown: dict | None = None
+    effective_weights: dict | None = None
 
 
 def build_match_result(llm_output: LlmMatchOutput) -> MatchResult:
@@ -32,4 +33,5 @@ def build_match_result(llm_output: LlmMatchOutput) -> MatchResult:
         eligible=scored["eligible"],
         scoring_status=scoring_status,
         breakdown=scored.get("breakdown"),
+        effective_weights=scored.get("effective_weights"),
     )

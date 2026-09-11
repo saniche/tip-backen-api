@@ -95,15 +95,15 @@ contract, and integration coverage at affected boundaries.
 **Independent Test**: Compare a known profile against multiple jobs, verify per-requirement explanations and high-to-low ranking, then list/view/delete only the owner’s report.
 
 - [x] T030 [P] [US3] Write deterministic score conversion, missing-weight redistribution, eligibility, and ranking unit tests in `tests/unit/test_matching_scoring.py`
-- [ ] T031 [P] [US3] Write match-report service tests for snapshots, unavailable jobs, missing profiles, and immutable completed results in `tests/unit/test_matching_service.py`
-- [ ] T032 [P] [US3] Write matching API contract tests for create, list, detail, deletion, ranking, and ownership denial in `tests/contract/test_matching_contract.py`
-- [ ] T033 [P] [US3] Write PostgreSQL and fake-AI matching integration tests in `tests/integration/test_matching_processing.py`
-- [ ] T034 [US3] Add MatchReport and MatchResult persistence fields for profile/job snapshots, rules/scoring versions, qualitative analysis, rank, and status in `models.py` and `alembic/versions/003_matching_reports.py`
-- [ ] T035 [US3] Add multi-job matching, report-list, report-detail, and ranked-result schemas in `schemas.py`
-- [ ] T036 [US3] Implement the deterministic scoring engine with base weights, proportional redistribution, and required-skill eligibility in `matching_scoring.py`
-- [ ] T037 [US3] Implement report creation, AI qualitative assessment validation, immutable result persistence, ranking, listing, viewing, and owner deletion in `matching_service.py` and `matching_tasks.py`
-- [ ] T038 [US3] Replace the preliminary one-job synchronous matcher with `/api/v1/matching` report routes in `job_matching_router.py`
-- [ ] T039 [US3] Run the focused matching unit, contract, and integration tests from `tests/unit/test_matching_scoring.py`, `tests/unit/test_matching_service.py`, `tests/contract/test_matching_contract.py`, and `tests/integration/test_matching_processing.py`
+- [x] T031 [P] [US3] Write match-report service tests for snapshots, unavailable jobs, missing profiles, and immutable completed results in `tests/unit/test_matching_service.py`
+- [x] T032 [P] [US3] Write matching API contract tests for create, list, detail, deletion, ranking, and ownership denial in `tests/contract/test_matching_contract.py`
+- [x] T033 [P] [US3] Write PostgreSQL and fake-AI matching integration tests in `tests/integration/test_matching_processing.py`
+- [x] T034 [US3] Add MatchReport and MatchResult persistence fields for profile/job snapshots, rules/scoring versions, qualitative analysis, rank, and status in `models.py` and `alembic/versions/003_matching_reports.py`
+- [x] T035 [US3] Add multi-job matching, report-list, report-detail, and ranked-result schemas in `schemas.py`
+- [x] T036 [US3] Implement the deterministic scoring engine with base weights, proportional redistribution, and required-skill eligibility in `matching_scoring.py`
+- [x] T037 [US3] Implement report creation, AI qualitative assessment validation, immutable result persistence, ranking, listing, viewing, and owner deletion in `matching_service.py` and `matching_tasks.py`
+- [x] T038 [US3] Replace the preliminary one-job synchronous matcher with `/api/v1/matching` report routes in `job_matching_router.py`
+- [x] T039 [US3] Run the focused matching unit, contract, and integration tests from `tests/unit/test_matching_scoring.py`, `tests/unit/test_matching_service.py`, `tests/contract/test_matching_contract.py`, and `tests/integration/test_matching_processing.py`
 
 **Checkpoint**: User Story 3 is independently usable and meets FR-013 through FR-016 with reproducible, deterministic, owner-scoped reports.
 

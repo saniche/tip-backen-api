@@ -104,6 +104,21 @@ class JobMatchingOut(BaseModel):
     breakdown: dict | None = None
 
 
+class MatchReportRequest(BaseModel):
+    job_ids: list[str]
+
+
+class MatchResultOut(JobMatchingOut):
+    rank: int | None = None
+    explanation: dict | None = None
+
+
+class MatchReportOut(BaseModel):
+    id: str
+    status: str
+    results: list[MatchResultOut]
+
+
 # --- CV tailoring ---
 
 
