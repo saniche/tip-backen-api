@@ -49,6 +49,22 @@ class JobExtraction(BaseModel):
     jobs: list[JobListing]
 
 
+class JobNormalizeRequest(BaseModel):
+    url: str
+    content: str
+    title: str | None = None
+    company: str | None = None
+    location: str | None = None
+
+
+class JobNormalizeOut(BaseModel):
+    id: str
+    status: str
+    title: str | None = None
+    url: str | None = None
+    created_at: object | None = None
+
+
 # --- Auth ---
 
 

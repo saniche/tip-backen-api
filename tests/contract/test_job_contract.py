@@ -9,3 +9,20 @@ def test_job_deduplication_filters_and_interest(client):
     assert len(client.get("/api/v1/jobs?company=Acme", headers=headers).json()) == 1
     assert client.post(f"/api/v1/jobs/{job_id}/interest", headers=headers).status_code == 201
     assert client.post(f"/api/v1/jobs/{job_id}/interest", headers=headers).json()["status"] == "existing"
+
+
+def test_job_contract_supports_pagination_date_filter_and_delete_authorization(client):
+    first = client.post("/api/v1/auth/register", json={"email": "submitter@example.com", "password": "password123"}).json()
+    second = client.post("/api/v1/auth/register", json={"email": "other@example.com", "password": "password123"}).json()
+    headers = {"Authorization": f"Bearer {first['access_token']}"}
+    job = client.post(
+        "/api/v1/jobs/normalize",
+        headers=headers,
+        json={"url": "https://jobs.test/contract", "content": "Data Engineer", "company": "Acme"},
+    )
+    assert job.status_code == 201
+    listed = client.get("/api/v1/jobs?page=1&limit=1&saved_after=2000-01-01", headers=headers)
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+    denied = client.delete(f"/api/v1/jobs/{job.json()['id']}", headers={"Authorization": f"Bearer {second['access_token']}"})
+    assert denied.status_code == 403

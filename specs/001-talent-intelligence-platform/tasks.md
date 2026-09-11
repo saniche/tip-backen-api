@@ -57,13 +57,13 @@ contract, and integration coverage at affected boundaries.
 
 - [x] T013 [P] [US1] Write profile-session state and precedence unit tests in `tests/unit/test_profile_service.py`
 - [x] T014 [P] [US1] Write profile API contract tests for sessions, files, profile reads/updates, invalid files, and cross-user denial in `tests/contract/test_profile_contract.py`
-- [ ] T015 [P] [US1] Write profile processing integration tests with fake AI and storage adapters in `tests/integration/test_profile_processing.py`
+- [x] T015 [P] [US1] Write profile processing integration tests with fake AI and storage adapters in `tests/integration/test_profile_processing.py`
 - [x] T016 [US1] Add ProfileSession, UserFile, ProfileFragment, and versioned UserProfile persistence models and migration in `models.py` and `alembic/versions/001_profile_processing.py`
 - [x] T017 [US1] Add profile session, upload, profile update, and profile response schemas in `schemas.py`
 - [x] T018 [US1] Implement extraction, evidence recording, completion checks, consolidation, and user-edited value precedence in `profile_service.py`
 - [x] T019 [US1] Implement background profile processing with permitted PDF/DOCX/TXT and configurable size validation in `profile_builder_router.py`
 - [x] T020 [US1] Replace the preliminary profile-builder routes with `/api/v1/profile` session, file, status, read, and update routes in `profile_builder_router.py`
-- [ ] T021 [US1] Register the profile migration and run the focused profile unit, contract, and integration tests from `tests/unit/test_profile_service.py`, `tests/contract/test_profile_contract.py`, and `tests/integration/test_profile_processing.py`
+- [x] T021 [US1] Register the profile migration and run the focused profile unit, contract, and integration tests from `tests/unit/test_profile_service.py`, `tests/contract/test_profile_contract.py`, and `tests/integration/test_profile_processing.py`
 
 **Checkpoint**: User Story 1 is independently usable and meets FR-002 through FR-007 and its profile-related ownership/error requirements.
 
@@ -75,14 +75,14 @@ contract, and integration coverage at affected boundaries.
 
 **Independent Test**: Submit a posting, poll completion, repeat its source URL, filter the job list, and create the same interest twice while observing one job and one interest record.
 
-- [ ] T022 [P] [US2] Write job normalization and filter-ordering unit tests in `tests/unit/test_job_service.py`
-- [ ] T023 [P] [US2] Write job and interest API contract tests for normalization, filtering, pagination, duplicate URL, interest uniqueness, and deletion authorization in `tests/contract/test_job_contract.py`
+- [x] T022 [P] [US2] Write job normalization and filter-ordering unit tests in `tests/unit/test_job_service.py`
+- [x] T023 [P] [US2] Write job and interest API contract tests for normalization, filtering, pagination, duplicate URL, interest uniqueness, and deletion authorization in `tests/contract/test_job_contract.py`
 - [ ] T024 [P] [US2] Write PostgreSQL and fake-AI normalization integration tests in `tests/integration/test_job_normalization.py`
 - [ ] T025 [US2] Add Job submitter/status fields, JobInterest, source URL and user-job uniqueness constraints, and migration in `models.py` and `alembic/versions/002_jobs_and_interests.py`
-- [ ] T026 [US2] Add normalization, job-search, pagination, and interest request/response schemas in `schemas.py`
+- [x] T026 [US2] Add normalization, job-search, pagination, and interest request/response schemas in `schemas.py`
 - [x] T027 [US2] Implement idempotent job normalization, validation, filtering, newest-first ordering, interests, and submitter/admin deletion policies in `job_normalizer.py`
 - [x] T028 [US2] Replace preliminary job extraction routes with `/api/v1/jobs` normalization, list, detail, interest, and deletion routes in `job_normalizer.py`
-- [ ] T029 [US2] Run the focused job unit, contract, and integration tests from `tests/unit/test_job_service.py`, `tests/contract/test_job_contract.py`, and `tests/integration/test_job_normalization.py`
+- [x] T029 [US2] Run the focused job unit, contract, and integration tests from `tests/unit/test_job_service.py`, `tests/contract/test_job_contract.py`, and `tests/integration/test_job_normalization.py`
 
 **Checkpoint**: User Story 2 is independently usable and meets FR-008 through FR-012, including shared-job deduplication and owner/admin deletion rules.
 

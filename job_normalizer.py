@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
 from models import Job, JobInterest, User
+from job_service import normalize_job_content
+from schemas import JobNormalizeOut, JobNormalizeRequest
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -17,20 +18,13 @@ SYSTEM_PROMPT = (
 )
 
 
-class JobNormalizeRequest(BaseModel):
-    url: str
-    content: str
-    title: str | None = None
-    company: str | None = None
-    location: str | None = None
-
-
-@router.post("/normalize", status_code=201)
+@router.post("/normalize", status_code=201, response_model=JobNormalizeOut)
 def normalize_job(payload: JobNormalizeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     existing = db.execute(select(Job).where(Job.url == payload.url)).scalar_one_or_none()
     if existing:
         return {"id": existing.id, "status": "existing"}
-    job = Job(url=payload.url, title=payload.title or payload.content.splitlines()[0][:200], company=payload.company, location=payload.location, summary=payload.content, submitter_id=current_user.id)
+    structured = normalize_job_content(payload.content)
+    job = Job(url=payload.url, title=payload.title or payload.content.splitlines()[0][:200], company=payload.company, location=payload.location, summary=payload.content, submitter_id=current_user.id, **structured)
     db.add(job)
     db.commit()
     db.refresh(job)
@@ -62,7 +56,19 @@ def list_jobs(
 def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.get(Job, job_id)
     if not job: raise HTTPException(404, "Job not found")
-    return {"id": job.id, "url": job.url, "title": job.title, "company": job.company, "location": job.location, "summary": job.summary}
+    return {
+        "id": job.id,
+        "url": job.url,
+        "title": job.title,
+        "company": job.company,
+        "location": job.location,
+        "summary": job.summary,
+        "key_responsibilities": job.key_responsibilities,
+        "required": job.required,
+        "desirable": job.desirable,
+        "technical_stack": job.technical_stack,
+        "status": job.status,
+    }
 
 
 @router.post("/{job_id}/interest", status_code=201)

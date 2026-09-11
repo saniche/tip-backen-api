@@ -43,6 +43,7 @@ def upgrade() -> None:
         sa.Column("required", sa.JSON()),
         sa.Column("desirable", sa.JSON()),
         sa.Column("technical_stack", sa.JSON()),
+        sa.Column("status", sa.String(), nullable=False, server_default="completed"),
         sa.Column("created_at", sa.DateTime(timezone=True)),
         sa.Column("submitter_id", sa.String(), sa.ForeignKey("users.id")),
     )

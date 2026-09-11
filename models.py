@@ -105,6 +105,7 @@ class Job(Base):
     required: Mapped[dict] = mapped_column(JSON, default=dict)  # {"qualifications": [...], "skills": [...]}
     desirable: Mapped[dict] = mapped_column(JSON, default=dict)
     technical_stack: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String, default="completed")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     submitter_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
 
