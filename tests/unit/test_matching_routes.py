@@ -10,8 +10,8 @@ def test_matching_report_routes_exist_and_scope_by_owner(client):
 
     first = client.post("/api/v1/jobs/normalize", headers=headers, json={"url": "https://jobs.test/alpha", "content": "Python Engineer with FastAPI", "company": "Acme", "title": "Python Engineer"})
     second = client.post("/api/v1/jobs/normalize", headers=headers, json={"url": "https://jobs.test/beta", "content": "Data Engineer with SQL", "company": "Acme", "title": "Data Engineer"})
-    assert first.status_code == 201
-    assert second.status_code == 201
+    assert first.status_code == 202
+    assert second.status_code == 202
 
     profile_row = {
         "summary": "Python engineer with backend and API experience",

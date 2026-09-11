@@ -9,7 +9,7 @@ def test_cv_tailoring_and_download_flow(client):
     assert profile.status_code == 200
 
     job = client.post("/api/v1/jobs/normalize", headers=headers, json={"url": "https://jobs.test/cv", "content": "Python Engineer with FastAPI and SQL", "company": "Acme", "title": "Python Engineer"})
-    assert job.status_code == 201
+    assert job.status_code == 202
 
     match_response = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job.json()["id"]]})
     assert match_response.status_code == 202

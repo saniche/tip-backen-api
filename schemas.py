@@ -60,6 +60,7 @@ class JobNormalizeRequest(BaseModel):
 class JobNormalizeOut(BaseModel):
     id: str
     status: str
+    processing_job_id: str | None = None
     title: str | None = None
     url: str | None = None
     created_at: object | None = None

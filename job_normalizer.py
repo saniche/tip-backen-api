@@ -1,14 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
-from database import get_db
+from database import SessionLocal, get_db
 from models import Job, JobInterest, User
+from models import ProcessingJob, ProcessingJobStatus, ProcessingJobType
 from job_service import normalize_job_content
 from schemas import JobNormalizeOut, JobNormalizeRequest
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+logger = logging.getLogger("tip-api")
 
 SYSTEM_PROMPT = (
     "You extract structured job posting data from raw text (which may contain one or more distinct "
@@ -18,17 +22,67 @@ SYSTEM_PROMPT = (
 )
 
 
-@router.post("/normalize", status_code=201, response_model=JobNormalizeOut)
-def normalize_job(payload: JobNormalizeRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def _run_job_normalization(processing_job_id: str, job_id: str) -> None:
+    db = SessionLocal()
+    try:
+        processing_job = db.get(ProcessingJob, processing_job_id)
+        job = db.get(Job, job_id)
+        if processing_job is None or job is None:
+            return
+        processing_job.status = ProcessingJobStatus.RUNNING
+        job.status = "processing"
+        db.commit()
+        structured = normalize_job_content(job.summary or "")
+        for key, value in structured.items():
+            setattr(job, key, value)
+        job.status = "completed"
+        processing_job.status = ProcessingJobStatus.DONE
+        processing_job.result_id = job.id
+        db.commit()
+    except Exception:
+        logger.exception("Job normalization failed", extra={"processing_job_id": processing_job_id})
+        if processing_job is not None:
+            processing_job.status = ProcessingJobStatus.FAILED
+            processing_job.error = "Job normalization failed"
+            db.commit()
+    finally:
+        db.close()
+
+
+@router.post("/normalize", status_code=202, response_model=JobNormalizeOut)
+def normalize_job(
+    payload: JobNormalizeRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     existing = db.execute(select(Job).where(Job.url == payload.url)).scalar_one_or_none()
     if existing:
         return {"id": existing.id, "status": "existing"}
-    structured = normalize_job_content(payload.content)
-    job = Job(url=payload.url, title=payload.title or payload.content.splitlines()[0][:200], company=payload.company, location=payload.location, summary=payload.content, submitter_id=current_user.id, **structured)
+    job = Job(
+        url=payload.url,
+        title=payload.title or payload.content.splitlines()[0][:200],
+        company=payload.company,
+        location=payload.location,
+        summary=payload.content,
+        submitter_id=current_user.id,
+        status="pending",
+    )
     db.add(job)
+    processing_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.JOB_NORMALIZE)
+    db.add(processing_job)
     db.commit()
     db.refresh(job)
-    return {"id": job.id, "status": "created", "title": job.title, "url": job.url, "created_at": job.created_at}
+    db.refresh(processing_job)
+    background_tasks.add_task(_run_job_normalization, processing_job.id, job.id)
+    return {
+        "id": job.id,
+        "status": "processing",
+        "processing_job_id": processing_job.id,
+        "title": job.title,
+        "url": job.url,
+        "created_at": job.created_at,
+    }
 
 
 @router.get("")

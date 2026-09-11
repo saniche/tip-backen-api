@@ -124,7 +124,7 @@ def upgrade() -> None:
         "processing_jobs",
         sa.Column("id", sa.String(), primary_key=True),
         sa.Column("user_id", sa.String(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("job_type", sa.Enum("PROFILE_BUILD", "CV_TAILOR", name="processingjobtype"), nullable=False),
+        sa.Column("job_type", sa.Enum("PROFILE_BUILD", "JOB_NORMALIZE", "CV_TAILOR", name="processingjobtype"), nullable=False),
         sa.Column("status", sa.Enum("PENDING", "RUNNING", "DONE", "FAILED", name="processingjobstatus"), nullable=False),
         sa.Column("result_id", sa.String()),
         sa.Column("error", sa.Text()),

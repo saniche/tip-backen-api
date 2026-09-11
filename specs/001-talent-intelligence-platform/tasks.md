@@ -77,8 +77,8 @@ contract, and integration coverage at affected boundaries.
 
 - [x] T022 [P] [US2] Write job normalization and filter-ordering unit tests in `tests/unit/test_job_service.py`
 - [x] T023 [P] [US2] Write job and interest API contract tests for normalization, filtering, pagination, duplicate URL, interest uniqueness, and deletion authorization in `tests/contract/test_job_contract.py`
-- [ ] T024 [P] [US2] Write PostgreSQL and fake-AI normalization integration tests in `tests/integration/test_job_normalization.py`
-- [ ] T025 [US2] Add Job submitter/status fields, JobInterest, source URL and user-job uniqueness constraints, and migration in `models.py` and `alembic/versions/002_jobs_and_interests.py`
+- [x] T024 [P] [US2] Write PostgreSQL and fake-AI normalization integration tests in `tests/integration/test_job_normalization.py`
+- [x] T025 [US2] Add Job submitter/status fields, JobInterest, source URL and user-job uniqueness constraints, and migration in `models.py` and `alembic/versions/002_jobs_and_interests.py`
 - [x] T026 [US2] Add normalization, job-search, pagination, and interest request/response schemas in `schemas.py`
 - [x] T027 [US2] Implement idempotent job normalization, validation, filtering, newest-first ordering, interests, and submitter/admin deletion policies in `job_normalizer.py`
 - [x] T028 [US2] Replace preliminary job extraction routes with `/api/v1/jobs` normalization, list, detail, interest, and deletion routes in `job_normalizer.py`
@@ -180,7 +180,7 @@ delivered by US1 and US2. US4 needs completed match results from US3.
 - [x] T053 Create and validate the missing initial Alembic migration for the implemented persistence models per plan: persistence/migrations (missing)
 - [x] T054 Implement the absent provider-isolated profile, matching, CV-tailoring, and markdown adapter modules required by the existing routers per plan: provider isolation (missing)
 - [x] T055 Complete document extraction, evidence tracking, successful-session merge gating, and user-edited profile precedence per FR-004, FR-005, and FR-006 (partial)
-- [ ] T056 Complete asynchronous job normalization with structured requirement extraction, saved-date filtering, and the planned response contract per FR-008 and FR-010 (partial)
+- [x] T056 Complete asynchronous job normalization with structured requirement extraction, saved-date filtering, and the planned response contract per FR-008 and FR-010 (partial)
 - [x] T057 Replace the single-job synchronous matcher with owner-scoped ranked match reports supporting immutable results and list, view, and delete operations per FR-013, FR-015, and FR-016 (contradicts)
 - [x] T058 Implement the `/cv` request, per-job/group-all generation, owner-scoped list/detail/delete operations, and authorized download contract per FR-017 and FR-019 (contradicts)
 - [x] T059 Centralize ownership authorization, common error schemas, and provider/storage failure sanitization across externally reachable routes per FR-001 and FR-020 (partial)
@@ -197,3 +197,12 @@ delivered by US1 and US2. US4 needs completed match results from US3.
 - [x] T065 Harden CV storage/download lifecycle and sanitize background failure details, with owner-scoped contract and integration coverage per FR-019, FR-020, and Constitution III (partial)
 - [x] T066 Add the missing Alembic revisions and profile, job, matching, and CV boundary test suites required by the plan, Constitution II/III, and T015/T021/T024/T029/T032/T033/T039/T040-T047 (missing)
 - [ ] T067 Add observability, end-to-end, migration, configuration documentation, static-analysis, and deployment validation required by T048-T052 and SC-001/SC-002/SC-004/SC-005/SC-006 (missing)
+
+---
+
+## Phase 10: Convergence
+
+- [x] T068 Implement asynchronous job normalization with a persisted processing resource, structured extraction, saved-date filtering, pagination, and the planned polling response contract per FR-008, FR-010, and plan: BackgroundTasks (partial)
+- [x] T069 Add PostgreSQL/fake-AI job normalization boundary coverage and replace the no-op `002_jobs_and_interests.py` revision with substantive jobs and interests schema migration per T024/T025 and plan: PostgreSQL boundary (partial)
+- [ ] T070 Resolve repository-wide Ruff findings and run the Docker build in a Docker-enabled environment as required by T052 and Constitution II/III (partial)
+- [ ] T071 Complete the final validation matrix and reconcile residual task tracking after asynchronous normalization, static analysis, migration, and Docker validation per T060/T067 (partial)

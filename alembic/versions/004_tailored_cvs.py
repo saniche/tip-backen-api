@@ -22,7 +22,14 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True)),
     )
     with op.batch_alter_table("tailored_cvs") as batch_op:
-        batch_op.add_column(sa.Column("request_id", sa.String(), sa.ForeignKey("cv_requests.id"), nullable=True))
+        batch_op.add_column(
+            sa.Column(
+                "request_id",
+                sa.String(),
+                sa.ForeignKey("cv_requests.id", name="fk_tailored_cvs_request_id"),
+                nullable=True,
+            )
+        )
     op.add_column("tailored_cvs", sa.Column("mode", sa.String(), nullable=True, server_default="per_job"))
     op.add_column("tailored_cvs", sa.Column("status", sa.String(), nullable=True, server_default="completed"))
     op.add_column("tailored_cvs", sa.Column("target_job_ids", sa.JSON(), nullable=True))
