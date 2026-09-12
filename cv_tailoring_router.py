@@ -23,17 +23,18 @@ from pipeline.llm_matching import JobData
 from pipeline.markdown_writer import render_tailored_cv_markdown, suggest_filename
 from schemas import CvTailoringRequest, ProcessingJobOut
 from serialization import dict_to_user_profile
-from storage import build_blob_path, generate_temporary_download_url, upload_markdown
+from storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
 
 router = APIRouter(tags=["cv-tailoring"])
 logger = logging.getLogger("tip-api")
 
 
-def _run_cv_tailoring(
+async def _run_cv_tailoring(
     proc_job_id: str, user_id: str, matching_ids: list[str], mode: str, output_language: str, request_id: str
 ) -> None:
     db = SessionLocal()
     proc_job = None
+    uploaded_blob_paths = []
     try:
         proc_job = db.get(ProcessingJob, proc_job_id)
         if proc_job is None:
@@ -68,7 +69,7 @@ def _run_cv_tailoring(
                 key_responsibilities=job.key_responsibilities,
                 summary=job.summary,
             )
-            tailored = build_tailored_cv(profile, job_data, match_score=matching.score, output_language=output_language)
+            tailored = await build_tailored_cv(profile, job_data, match_score=matching.score, output_language=output_language)
             record = TailoredCVRecord(
                 matching_id=matching.id,
                 request_id=request_id,
@@ -82,6 +83,7 @@ def _run_cv_tailoring(
             db.flush()
             blob_path = build_blob_path(user_id, record.id, suggest_filename(tailored))
             upload_markdown(blob_path, render_tailored_cv_markdown(tailored))
+            uploaded_blob_paths.append(blob_path)
             record.blob_path = blob_path
             records.append(record)
         db.commit()
@@ -94,6 +96,13 @@ def _run_cv_tailoring(
         db.commit()
     except Exception:  # noqa: BLE001 — surface via polled status
         logger.exception("CV tailoring failed", extra={"processing_job_id": proc_job_id})
+        db.rollback()
+        for blob_path in uploaded_blob_paths:
+            try:
+                delete_blob(blob_path)
+            except Exception:  # noqa: BLE001 - original processing failure remains authoritative
+                logger.warning("CV blob cleanup failed", extra={"processing_job_id": proc_job_id})
+        proc_job = db.get(ProcessingJob, proc_job_id)
         if proc_job is not None:
             proc_job.status = ProcessingJobStatus.FAILED
             proc_job.error = "CV generation failed"

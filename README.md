@@ -59,6 +59,23 @@ Required values include `DATABASE_URL` and `JWT_SECRET_KEY`. Azure Blob Storage 
 temporary download URLs also use `AZURE_STORAGE_ACCOUNT_NAME` and `AZURE_STORAGE_ACCOUNT_KEY`.
 Never commit `.env` or expose these credentials; rotate any credential that has been shared.
 
+### OpenAI structured processing
+
+Profile extraction, job normalization, matching, and CV tailoring require `OPENAI_API_KEY`. Each
+operation may select a separate Structured Outputs-capable model; the default is `gpt-4o-mini`:
+
+```dotenv
+OPENAI_API_KEY=...
+OPENAI_PROFILE_BUILDER_MODEL=gpt-4o-mini
+OPENAI_JOB_NORMALIZER_MODEL=gpt-4o-mini
+OPENAI_JOB_MATCHING_MODEL=gpt-4o-mini
+OPENAI_CV_TAILORING_MODEL=gpt-4o-mini
+OPENAI_TIMEOUT_SECONDS=60
+```
+
+Standard automated tests mock OpenAI calls and do not require an API key. Provider failures result
+in a safe service error for matching or a failed processing job for profile, job, and CV workflows.
+
 ## Validation
 
 ```powershell

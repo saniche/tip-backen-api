@@ -63,7 +63,7 @@ def _view(report: MatchReport, results: list[JobMatchingResult]) -> MatchReportV
     )
 
 
-def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReportView:
+async def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReportView:
     if not job_ids:
         raise ValueError("At least one job id is required")
     profile = (
@@ -76,15 +76,21 @@ def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchR
     jobs = {job.id: job for job in db.execute(select(Job).where(Job.id.in_(job_ids))).scalars().all()}
     if any(job_id not in jobs for job_id in job_ids):
         raise ValueError("Job not found")
+    if any(job.status != "completed" for job in jobs.values()):
+        raise ValueError("Job processing has not completed")
+
+    prepared = []
+    for job_id in job_ids:
+        job = jobs[job_id]
+        llm_output = await get_llm_match_output(profile.data, _job_data(job))
+        scored = build_match_result(llm_output)
+        prepared.append((job, llm_output, scored))
 
     report = MatchReport(user_id=user_id, profile_id=profile.id, rules_version="v1")
     db.add(report)
     db.flush()
     persisted = []
-    for job_id in job_ids:
-        job = jobs[job_id]
-        llm_output = get_llm_match_output(profile.data, _job_data(job))
-        scored = build_match_result(llm_output)
+    for job, llm_output, scored in prepared:
         result = JobMatchingResult(
             report_id=report.id,
             user_id=user_id,

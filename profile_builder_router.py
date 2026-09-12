@@ -1,3 +1,5 @@
+from dataclasses import asdict
+
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import desc, select
@@ -27,7 +29,7 @@ class ProfileUpdate(BaseModel):
     output_language: str = "English"
 
 
-def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) -> None:
+async def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) -> None:
     db = SessionLocal()
     try:
         session = db.get(ProfileSession, session_id)
@@ -38,11 +40,22 @@ def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) 
         fragments = []
         for file in files:
             file.status = ProfileFileStatus.PROCESSING
-            extracted = extract_profile({"content": file.content, "name": file.filename})
+            extracted = await extract_profile({"content": file.content, "name": file.filename})
             fragment_data = {
                 "name": extracted.Name,
+                "email": extracted.Email,
+                "phone": extracted.Phone,
+                "location": extracted.Location,
+                "linkedin": extracted.LinkedIn,
                 "summary": extracted.Summary,
-                "skills": [item.Name for item in extracted.TechnicalSkills],
+                "soft_skills": extracted.SoftSkills,
+                "certifications": [asdict(item) for item in extracted.Certifications],
+                "work_experiences": [asdict(item) for item in extracted.WorkExperiences],
+                "education": [asdict(item) for item in extracted.Education],
+                "total_years_of_experience": extracted.TotalYearsOfExperience,
+                "preferred_job_titles": extracted.PreferredJobTitles,
+                "preferred_locations": extracted.PreferredLocations,
+                "skills": [asdict(item) for item in extracted.TechnicalSkills],
                 "languages": extracted.Languages,
                 "source": file.filename,
             }
@@ -64,9 +77,14 @@ def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) 
         db.commit()
         complete_processing_job(db, processing_job_id, profile.id)
     except Exception:
+        db.rollback()
         session = db.get(ProfileSession, session_id)
         if session:
             session.status = ProfileSessionStatus.FAILED
+        for file in db.execute(select(UserFile).where(UserFile.session_id == session_id)).scalars():
+            if file.status != ProfileFileStatus.COMPLETED:
+                file.status = ProfileFileStatus.FAILED
+                file.error = "Profile processing failed"
         db.commit()
         fail_processing_job(db, processing_job_id, "Profile processing failed")
     finally:

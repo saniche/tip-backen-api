@@ -11,38 +11,73 @@ strict-mode compatibility has changed across API versions.
 """
 
 import os
+import logging
+import time
 from typing import Type, TypeVar
 
 import httpx
 from pydantic import BaseModel
 
+from config import OPENAI_MODELS, OPENAI_TIMEOUT_SECONDS
+
 T = TypeVar("T", bound=BaseModel)
+logger = logging.getLogger("tip-api")
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+
+class StructuredProviderError(Exception):
+    """Safe failure raised when structured model processing cannot complete."""
 
 
-async def call_openai_structured(system: str, user: str, schema_model: Type[T], model: str = "gpt-4o-mini") -> T:
+def _model_for(operation: str, model: str | None) -> str:
+    selected = model or OPENAI_MODELS.get(operation)
+    if not selected:
+        raise StructuredProviderError("External processing is not configured.")
+    return selected
+
+
+async def call_openai_structured(
+    system: str, user: str, schema_model: Type[T], *, operation: str, model: str | None = None
+) -> T:
+    started_at = time.perf_counter()
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise StructuredProviderError("External processing is not configured.")
+    selected_model = _model_for(operation, model)
     schema = schema_model.model_json_schema()
-
-    async with httpx.AsyncClient(timeout=60) as client:
-        res = await client.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json={
-                "model": model,
-                "temperature": 0,
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {"name": schema_model.__name__, "schema": schema, "strict": True},
+    try:
+        async with httpx.AsyncClient(timeout=OPENAI_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": selected_model,
+                    "temperature": 0,
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {"name": schema_model.__name__, "schema": schema, "strict": True},
+                    },
+                    "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                 },
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-            },
+            )
+            response.raise_for_status()
+            message = response.json()["choices"][0]["message"]
+        if message.get("refusal") or not message.get("content"):
+            raise StructuredProviderError("External processing did not return a usable result.")
+        result = schema_model.model_validate_json(message["content"])
+        logger.info(
+            "Structured provider completed",
+            extra={"operation": operation, "model": selected_model, "duration_ms": int((time.perf_counter() - started_at) * 1000)},
         )
-        res.raise_for_status()
-        data = res.json()
-
-    content = data["choices"][0]["message"]["content"]
-    return schema_model.model_validate_json(content)
+        return result
+    except StructuredProviderError as exc:
+        logger.warning(
+            "Structured provider failed",
+            extra={"operation": operation, "model": selected_model, "duration_ms": int((time.perf_counter() - started_at) * 1000)},
+        )
+        raise
+    except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+        logger.warning(
+            "Structured provider failed",
+            extra={"operation": operation, "model": selected_model, "duration_ms": int((time.perf_counter() - started_at) * 1000)},
+        )
+        raise StructuredProviderError("External processing failed.") from exc

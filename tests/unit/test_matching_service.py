@@ -1,10 +1,12 @@
 import pytest
 
+from llm_structured import StructuredProviderError
 from matching_service import create_match_report, get_match_report, list_match_reports
-from models import Job, JobMatchingResult, User, UserProfile
+from models import Job, JobMatchingResult, MatchReport, User, UserProfile
 
 
-def test_match_report_creation_and_ownership(database_session):
+@pytest.mark.asyncio
+async def test_match_report_creation_and_ownership(database_session):
     user = User(email="match@example.com", hashed_password="hash")
     database_session.add(user)
     database_session.commit()
@@ -31,7 +33,7 @@ def test_match_report_creation_and_ownership(database_session):
     database_session.commit()
     database_session.refresh(job)
 
-    report = create_match_report(database_session, user.id, [job.id])
+    report = await create_match_report(database_session, user.id, [job.id])
 
     assert report is not None
     assert len(report.results) == 1
@@ -47,15 +49,17 @@ def test_match_report_creation_and_ownership(database_session):
         get_match_report(database_session, other_user.id, report.id)
 
 
-def test_match_report_rejects_missing_profile_and_unavailable_job(database_session):
+@pytest.mark.asyncio
+async def test_match_report_rejects_missing_profile_and_unavailable_job(database_session):
     user = User(email="missing-profile@example.com", hashed_password="hash")
     database_session.add(user)
     database_session.commit()
     with pytest.raises(ValueError, match="Profile not found"):
-        create_match_report(database_session, user.id, ["missing-job"])
+        await create_match_report(database_session, user.id, ["missing-job"])
 
 
-def test_match_report_keeps_profile_and_job_snapshots(database_session):
+@pytest.mark.asyncio
+async def test_match_report_keeps_profile_and_job_snapshots(database_session):
     user = User(email="snapshot@example.com", hashed_password="hash")
     database_session.add(user)
     database_session.commit()
@@ -72,10 +76,35 @@ def test_match_report_keeps_profile_and_job_snapshots(database_session):
     database_session.commit()
     database_session.refresh(job)
 
-    report = create_match_report(database_session, user.id, [job.id])
+    report = await create_match_report(database_session, user.id, [job.id])
     result = database_session.query(JobMatchingResult).first()
 
     assert report.results[0].score >= 0
     assert result.profile_snapshot["skills"] == ["Python"]
     assert result.job_snapshot["title"] == "Python Engineer"
     assert result.rank == 1
+
+
+@pytest.mark.asyncio
+async def test_match_provider_failure_does_not_persist_partial_report(database_session, monkeypatch):
+    user = User(email="provider-failure@example.com", hashed_password="hash")
+    database_session.add(user)
+    database_session.commit()
+    profile = UserProfile(user_id=user.id, data={"skills": ["Python"]}, output_language="English")
+    job = Job(
+        title="Python Engineer", url="https://jobs.example/provider-failure",
+        required={"qualifications": [], "skills": ["Python"]}, desirable={"qualifications": [], "skills": []},
+        technical_stack=["Python"], submitter_id=user.id,
+    )
+    database_session.add_all([profile, job])
+    database_session.commit()
+
+    async def fail_matching(*args, **kwargs):
+        raise StructuredProviderError("External processing failed.")
+
+    monkeypatch.setattr("matching_service.get_llm_match_output", fail_matching)
+    with pytest.raises(StructuredProviderError):
+        await create_match_report(database_session, user.id, [job.id])
+
+    assert database_session.query(MatchReport).count() == 0
+    assert database_session.query(JobMatchingResult).count() == 0

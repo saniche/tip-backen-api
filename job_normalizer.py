@@ -21,7 +21,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def _run_job_normalization(processing_job_id: str, job_id: str) -> None:
+async def _run_job_normalization(processing_job_id: str, job_id: str) -> None:
     db = SessionLocal()
     try:
         processing_job = db.get(ProcessingJob, processing_job_id)
@@ -31,7 +31,7 @@ def _run_job_normalization(processing_job_id: str, job_id: str) -> None:
         processing_job.status = ProcessingJobStatus.RUNNING
         job.status = "processing"
         db.commit()
-        structured = normalize_job_content(job.summary or "")
+        structured = await normalize_job_content(job.summary or "")
         for key, value in structured.items():
             setattr(job, key, value)
         job.status = "completed"
@@ -40,9 +40,14 @@ def _run_job_normalization(processing_job_id: str, job_id: str) -> None:
         db.commit()
     except Exception:
         logger.exception("Job normalization failed", extra={"processing_job_id": processing_job_id})
+        db.rollback()
         if processing_job is not None:
+            processing_job = db.get(ProcessingJob, processing_job_id)
+            job = db.get(Job, job_id)
             processing_job.status = ProcessingJobStatus.FAILED
             processing_job.error = "Job normalization failed"
+            if job is not None:
+                job.status = "failed"
             db.commit()
     finally:
         db.close()

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from auth import get_current_user
 from database import get_db
+from llm_structured import StructuredProviderError
 from matching_service import create_match_report as persist_match_report
 from models import JobMatchingResult, MatchReport, User
 from schemas import JobMatchingOut, JobMatchingRequest
@@ -17,7 +18,7 @@ class MatchCreateRequest(BaseModel):
 
 
 @router.post("", status_code=202)
-def create_match_report(
+async def create_match_report(
     payload: MatchCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -26,9 +27,11 @@ def create_match_report(
         raise HTTPException(400, "At least one job id is required")
 
     try:
-        report = persist_match_report(db, current_user.id, payload.job_ids)
+        report = await persist_match_report(db, current_user.id, payload.job_ids)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    except StructuredProviderError as exc:
+        raise HTTPException(502, "External processing failed. Please try again later.") from exc
     return {"report_id": report.id, "status": "completed"}
 
 
@@ -110,13 +113,13 @@ def delete_match_report(
 
 
 @router.post("/match", response_model=JobMatchingOut)
-def match_job(
+async def match_job(
     payload: JobMatchingRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     request = MatchCreateRequest(job_ids=[payload.job_id])
-    response = create_match_report(request, current_user, db)
+    response = await create_match_report(request, current_user, db)
     report_id = response["report_id"]
     result = (
         db.execute(

@@ -1,20 +1,30 @@
-import re
+from pydantic import BaseModel, ConfigDict
+
+from llm_structured import call_openai_structured
 
 
-def normalize_job_content(content: str) -> dict:
-    lines = [line.strip() for line in (content or "").splitlines() if line.strip()]
-    responsibilities = [line for line in lines[1:] if re.match(r"[-*]", line)]
-    skill_names = sorted(
-        {
-            match.group(0)
-            for match in re.finditer(
-                r"\b(?:Python|FastAPI|SQL|PostgreSQL|Java|JavaScript|TypeScript|AWS|Azure)\b", content or "", re.I
-            )
-        }
+class JobRequirementsOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    qualifications: list[str]
+    skills: list[str]
+
+
+class JobNormalizationOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key_responsibilities: list[str]
+    required: JobRequirementsOutput
+    desirable: JobRequirementsOutput
+    technical_stack: list[str]
+
+
+JOB_NORMALIZATION_SYSTEM_PROMPT = (
+    "Extract job responsibilities, required and desirable qualifications and skills, and technical stack. "
+    "Return only explicit facts from the job posting. Use empty arrays when a category is absent."
+)
+
+
+async def normalize_job_content(content: str) -> dict:
+    output = await call_openai_structured(
+        JOB_NORMALIZATION_SYSTEM_PROMPT, content, JobNormalizationOutput, operation="job_normalizer"
     )
-    return {
-        "key_responsibilities": [item.lstrip("-* ") for item in responsibilities],
-        "required": {"qualifications": [], "skills": skill_names},
-        "desirable": {"qualifications": [], "skills": []},
-        "technical_stack": skill_names,
-    }
+    return output.model_dump()

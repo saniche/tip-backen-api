@@ -3,6 +3,8 @@ from typing import Any
 
 from fastapi import HTTPException
 
+from llm_structured import StructuredProviderError
+
 logger = logging.getLogger("tip-api")
 
 
@@ -37,6 +39,10 @@ def safe_message(value: Any, fallback: str = "The request could not be processed
 
 
 def translate_exception(exc: Exception) -> AppException:
+    if isinstance(exc, StructuredProviderError):
+        return AppException(
+            "External processing failed. Please try again later.", code="SERVICE_UNAVAILABLE", status_code=502
+        )
     if isinstance(exc, HTTPException):
         code_map = {
             401: "UNAUTHORIZED",

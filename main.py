@@ -67,6 +67,8 @@ async def http_error(request: Request, exc: HTTPException):
         403: "FORBIDDEN",
         404: "RESOURCE_NOT_FOUND",
         409: "CONFLICT",
+        502: "SERVICE_UNAVAILABLE",
+        503: "SERVICE_UNAVAILABLE",
         422: "VALIDATION_ERROR",
     }
     request_id = request.headers.get("X-Request-ID")
