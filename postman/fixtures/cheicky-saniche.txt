@@ -1,0 +1,110 @@
+# Cheicky Saniche
+
+Programmeur Analyste | Développeur senior | Lead Technique | Architecte logiciel
+Ottawa, Ontario, Canada
+[phone number] -- email2@mail.com
+
+## Profil Professionnel
+
+Développeur .NET Senior combinant jugement architectural .NET/Azure avec encadrement pragmatique : cadrage rapide des conceptions, revues de code ciblées, renforcement des pratiques sécurisées et amélioration continue des pipelines. Priorité à la clarté, la maintenabilité et le refactoring discipliné.
+
+## Compétences
+
+### Développement & Langages
+
+- Développement .NET, C#, VB.NET, JavaScript, TypeScript
+- ASP.NET Core API/MVC, Razor
+- SOAP, RESTFull, WCF, Entity Framework, Dapper
+- Angular, JQuery, Bootstrap, PowerShell
+- SharePoint Server/Online, Microsoft Graph, PnP Framework
+- WPF / MVVM, XML, XSD
+
+### Architecture & Méthodologies
+
+- Architecture logicielle, microservices, Design Pattern (Facade, Repository, etc.), Principes SOLID
+- Méthode agile/Scrum, travail en équipe
+
+### Cloud & DevOps
+
+- Azure, Azure Entra ID, Azure DevOps, GitHub, GitHub Copilot
+- Git, YAML, Azure Resource Manager
+- Docker, Kubernetes, RabbitMQ
+- Intégration continue, déploiement continu (CI/CD)
+
+### Sécurité & Bases de données
+
+- OAuth2, OpenID Connect, Identity Server, Azure Key Vault
+- SQL Server, PostgreSQL, Oracle PL/SQL, Redis, MongoDB
+
+## Parcours professionnel
+
+### Programmeur Analyste
+
+Société Conseil Groupe LGS -- Québec (02/2021 -- 09/2025)
+
+- Réalisation de la maintenance corrective et évolutive du produit auprès des clients
+- Consultation TI auprès de clients majeurs
+- Conception d'architectures évolutives, développement d'API et microservices
+- Mise en place de pipelines CI/CD sur Azure DevOps
+- Modernisation et migration de solution vers Azure et SharePoint Online
+
+#### Mandats spécifiques
+
+Analyste Programmeur - RAMQ (Régie Assurance) (06/2021 -- 12/2022)
+
+- Modernisation de la chaîne d'alimentation du laboratoire (Projet ETLAB)
+- Développement de microservices performants (.NET 6, EF, Dapper, REST/SOAP)
+- Optimisation des traitements backend
+- Déploiement de services via Docker et Kubernetes, Azure DevOps
+- Automatisation CI/CD et amélioration de la qualité logicielle
+
+Analyste Organique (SharePoint) - MAPAQ (Ministère de l'Agriculture) (12/2022 -- 09/2025)
+
+- Migration vers Azure et SharePoint Online
+- Maintenance et modernisation de l'intranet et du site internet
+- Développement et optimisation d'API REST/SOAP
+- Automatisation CI/CD et amélioration de la qualité logicielle
+- Optimisation des performances et revue de code
+
+### Lead Technique
+
+SOTELS -- Abidjan (11/2020 -- 05/2021)
+
+- Leadership technique et encadrement d'équipes de développement
+- Conception de solutions fullstack (microservices, web, mobile)
+- Mise en place d'environnements cloud Azure
+- Gestion du code source et automatisation CI/CD
+
+### Développeur
+
+SYLEB -- Lomé, Accra (08/2011 -- 10/2020)
+
+- Développement ASP.NET MVC/Core, WCF, WPF, SharePoint et solutions GED
+- Projets critiques : paiement mobile, systèmes comptables
+- Implémentation de sécurité avancée : OAuth, Identity Server, ECDSA
+- Automatisation PowerShell, intégration documentaire
+- Rôle de mentor et participation à l'architecture applicative
+
+## Éducation et diplômes
+
+### Master of Science : Technologies de l'information
+
+SUPINFO International University -- Paris, France (2018)
+
+### Baccalauréat de technicien : Mathématiques et Technologies
+
+Lycée Technique d'Abidjan -- Abidjan, Côte d'Ivoire (2008)
+
+## Langues
+
+- Français : Langue maternelle
+- Anglais : Avancé
+
+## Certificats et formations
+
+- Microsoft Certified: DevOps Engineer Expert (2024)
+- Microsoft Certified: Azure Developer Associate (2023)
+- Microsoft Certified: Azure Fundamentals (2022)
+- MCPD (Microsoft Certified Professional Developer) (2013)
+- MCITP (Microsoft Certified Information Technology Professional) (2013)
+- Ingénierie en Science informatique, ENSIT, Abidjan (2008 -- 2011)

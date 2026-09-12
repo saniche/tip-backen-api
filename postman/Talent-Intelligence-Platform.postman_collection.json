@@ -1,0 +1,270 @@
+{
+  "info": {
+    "_postman_id": "b50b6371-24fc-4e22-bfab-9c13f47ce2fe",
+    "name": "Talent Intelligence Platform API",
+    "description": "Integration tests for API v1. Run the folders in order; Setup creates the profile and job used by matching and CV tests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000" },
+    { "key": "api_url", "value": "{{base_url}}/api/v1" },
+    { "key": "email", "value": "" },
+    { "key": "password", "value": "Password123!" },
+    { "key": "access_token", "value": "" },
+    { "key": "profile_session_id", "value": "" },
+    { "key": "profile_processing_job_id", "value": "" },
+    { "key": "job_id", "value": "" },
+    { "key": "job_processing_job_id", "value": "" },
+    { "key": "report_id", "value": "" },
+    { "key": "matching_id", "value": "" },
+    { "key": "cv_processing_job_id", "value": "" },
+    { "key": "tailored_cv_id", "value": "" },
+    { "key": "unknown_id", "value": "00000000-0000-0000-0000-000000000000" },
+    { "key": "profile_fixture_path", "value": "postman/fixtures/profile.txt" }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('email')) {",
+          "  pm.collectionVariables.set('email', `postman-${Date.now()}@example.test`);",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Main",
+      "item": [
+        {
+          "name": "Health - success",
+          "request": { "method": "GET", "url": "{{base_url}}/health" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200 and ok', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().status).to.eql('ok');", "});"] }}]
+        },
+        {
+          "name": "Ready - success",
+          "request": { "method": "GET", "url": "{{base_url}}/ready" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns 200 and ready', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().status).to.eql('ready');", "});"] }}]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register - success",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{api_url}}/auth/register" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates a user and returns a bearer token', () => {", "  pm.response.to.have.status(201);", "  const body = pm.response.json();", "  pm.expect(body.access_token).to.be.a('string').and.not.empty;", "  pm.expect(body.token_type).to.eql('bearer');", "  pm.collectionVariables.set('access_token', body.access_token);", "});"] }}]
+        },
+        {
+          "name": "Register - duplicate email failure",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}" }, "url": "{{api_url}}/auth/register" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects duplicate email', () => {", "  pm.response.to.have.status(400);", "  pm.expect(pm.response.json().error.message).to.eql('Email already registered');", "});"] }}]
+        },
+        {
+          "name": "Login - success",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }], "body": { "mode": "urlencoded", "urlencoded": [{ "key": "username", "value": "{{email}}" }, { "key": "password", "value": "{{password}}" }] }, "url": "{{api_url}}/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns a bearer token', () => {", "  pm.response.to.have.status(200);", "  pm.collectionVariables.set('access_token', pm.response.json().access_token);", "});"] }}]
+        },
+        {
+          "name": "Login - invalid password failure",
+          "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/x-www-form-urlencoded" }], "body": { "mode": "urlencoded", "urlencoded": [{ "key": "username", "value": "{{email}}" }, { "key": "password", "value": "incorrect-password" }] }, "url": "{{api_url}}/auth/login" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects invalid credentials', () => {", "  pm.response.to.have.status(401);", "  pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED');", "});"] }}]
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Create session - success",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/profile/sessions" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates a profile session', () => {", "  pm.response.to.have.status(201);", "  pm.collectionVariables.set('profile_session_id', pm.response.json().id);", "});"] }}]
+        },
+        {
+          "name": "Create session - unauthenticated failure",
+          "request": { "method": "POST", "url": "{{api_url}}/profile/sessions" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('requires authentication', () => {", "  pm.response.to.have.status(401);", "});"] }}]
+        },
+        {
+          "name": "Upload session file - success",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": "{{profile_fixture_path}}" }] }, "url": "{{api_url}}/profile/sessions/{{profile_session_id}}/files" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('accepts a supported profile document', () => {", "  pm.response.to.have.status(202);", "  pm.collectionVariables.set('profile_processing_job_id', pm.response.json().processing_job_id);", "});"] }}]
+        },
+        {
+          "name": "Upload session file - unsupported type failure",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{}" }, "url": "{{api_url}}/profile/sessions/{{profile_session_id}}/files" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects a request without a file', () => {", "  pm.response.to.have.status(422);", "});"] }}]
+        },
+        {
+          "name": "Get session - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/profile/sessions/{{profile_session_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns the owned session', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('profile_session_id'));", "});"] }}]
+        },
+        {
+          "name": "Get session - missing failure",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/profile/sessions/{{unknown_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('hides missing sessions', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        },
+        {
+          "name": "Get profile - missing failure",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/profile" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('reports absent profile before update', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        },
+        {
+          "name": "Update profile - success",
+          "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"data\": {\n    \"summary\": \"Backend engineer specialising in Python and FastAPI\",\n    \"skills\": [\"Python\", \"FastAPI\", \"SQL\"]\n  },\n  \"output_language\": \"English\"\n}" }, "url": "{{api_url}}/profile" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates or updates the canonical profile', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().data.skills).to.include('Python');", "});"] }}]
+        },
+        {
+          "name": "Get profile - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/profile" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns the current profile', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().data).to.have.property('summary');", "});"] }}]
+        },
+        {
+          "name": "Update profile - malformed failure",
+          "request": { "method": "PUT", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"output_language\": \"English\"\n}" }, "url": "{{api_url}}/profile" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('requires profile data', () => {", "  pm.response.to.have.status(422);", "});"] }}]
+        }
+      ]
+    },
+    {
+      "name": "Setup: Job for matching",
+      "item": [
+        {
+          "name": "Normalize job - success",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"url\": \"https://jobs.example.test/postman-{{email}}\",\n  \"title\": \"Python Backend Engineer\",\n  \"content\": \"Python Backend Engineer. Build REST APIs using Python, FastAPI, and SQL. Experience with PostgreSQL is required.\"\n}" }, "url": "{{api_url}}/jobs/normalize" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates the matching prerequisite job', () => {", "  pm.response.to.have.status(202);", "  const body = pm.response.json();", "  pm.collectionVariables.set('job_id', body.id);", "  pm.collectionVariables.set('job_processing_job_id', body.processing_job_id);", "});"] }}]
+        },
+        {
+          "name": "Get job normalization status - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/processing-jobs/{{job_processing_job_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns job processing status', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json()).to.have.property('status');", "});"] }}]
+        }
+      ]
+    },
+    {
+      "name": "Processing Jobs",
+      "item": [
+        {
+          "name": "Get profile processing job - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/processing-jobs/{{profile_processing_job_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns an owned processing job', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json()).to.have.keys('id', 'status', 'result_id', 'error');", "});"] }}]
+        },
+        {
+          "name": "Get processing job - missing failure",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/processing-jobs/{{unknown_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects unknown processing jobs', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        }
+      ]
+    },
+    {
+      "name": "Matching",
+      "item": [
+        {
+          "name": "Create match report - success",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"job_ids\": [\"{{job_id}}\"] }" }, "url": "{{api_url}}/matching" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('creates a completed match report', () => {", "  pm.response.to.have.status(202);", "  pm.collectionVariables.set('report_id', pm.response.json().report_id);", "});"] }}]
+        },
+        {
+          "name": "Create match report - empty selection failure",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"job_ids\": [] }" }, "url": "{{api_url}}/matching" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('requires at least one job', () => {", "  pm.response.to.have.status(400);", "});"] }}]
+        },
+        {
+          "name": "List reports - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/matching/reports" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('lists owned reports', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().map(report => report.id)).to.include(pm.collectionVariables.get('report_id'));", "});"] }}]
+        },
+        {
+          "name": "Get report - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/matching/reports/{{report_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns ranked matching results', () => {", "  pm.response.to.have.status(200);", "  const result = pm.response.json().results[0];", "  pm.expect(result).to.have.property('id');", "  pm.collectionVariables.set('matching_id', result.id);", "});"] }}]
+        },
+        {
+          "name": "Get report - missing failure",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/matching/reports/{{unknown_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects unknown reports', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        },
+        {
+          "name": "Match one job - success",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"job_id\": \"{{job_id}}\" }" }, "url": "{{api_url}}/matching/match" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('matches a single job', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().job_id).to.eql(pm.collectionVariables.get('job_id'));", "});"] }}]
+        },
+        {
+          "name": "Match one job - missing job failure",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"job_id\": \"{{unknown_id}}\" }" }, "url": "{{api_url}}/matching/match" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects an unknown job', () => {", "  pm.response.to.have.status(400);", "});"] }}]
+        }
+      ]
+    },
+    {
+      "name": "CV Tailoring",
+      "item": [
+        {
+          "name": "Tailor CV (/cv/tailor) - success",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"matching_ids\": [\"{{matching_id}}\"], \"mode\": \"per_job\", \"output_language\": \"English\" }" }, "url": "{{api_url}}/cv/tailor" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('accepts a CV tailoring request', () => {", "  pm.response.to.have.status(202);", "  pm.collectionVariables.set('cv_processing_job_id', pm.response.json().id);", "});"] }}]
+        },
+        {
+          "name": "Tailor CV (/cv-tailoring/tailor) - success",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"matching_id\": \"{{matching_id}}\", \"mode\": \"group_all\" }" }, "url": "{{api_url}}/cv-tailoring/tailor" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('supports the alternate tailoring route', () => {", "  pm.response.to.have.status(202);", "});"] }}]
+        },
+        {
+          "name": "Tailor CV - invalid matching failure",
+          "request": { "method": "POST", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }, { "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"matching_ids\": [\"{{unknown_id}}\"], \"mode\": \"per_job\" }" }, "url": "{{api_url}}/cv/tailor" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects an unknown matching result', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        },
+        {
+          "name": "Get CV tailoring processing job - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/processing-jobs/{{cv_processing_job_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns CV processing status', () => {", "  pm.response.to.have.status(200);", "  const body = pm.response.json();", "  if (body.result_id) pm.collectionVariables.set('tailored_cv_id', body.result_id);", "});"] }}]
+        },
+        {
+          "name": "List CVs - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/cv" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('lists tailored CVs', () => {", "  pm.response.to.have.status(200);", "  const cvs = pm.response.json();", "  pm.expect(cvs).to.be.an('array');", "  if (!pm.collectionVariables.get('tailored_cv_id') && cvs.length) pm.collectionVariables.set('tailored_cv_id', cvs[0].id);", "});"] }}]
+        },
+        {
+          "name": "Get CV - success",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/cv/{{tailored_cv_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('returns tailored CV metadata', () => {", "  pm.response.to.have.status(200);", "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('tailored_cv_id'));", "});"] }}]
+        },
+        {
+          "name": "Get CV - missing failure",
+          "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/cv/{{unknown_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects unknown tailored CVs', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
+        {
+          "name": "Delete CV - success",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/cv/{{tailored_cv_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('deletes the tailored CV', () => {", "  pm.response.to.have.status(204);", "});"] }}]
+        },
+        {
+          "name": "Delete CV - missing failure",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/cv/{{tailored_cv_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects deleting an already deleted CV', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        },
+        {
+          "name": "Delete match report - success",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/matching/reports/{{report_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('deletes the match report', () => {", "  pm.response.to.have.status(204);", "});"] }}]
+        },
+        {
+          "name": "Delete match report - missing failure",
+          "request": { "method": "DELETE", "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }], "url": "{{api_url}}/matching/reports/{{report_id}}" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('rejects deleting an already deleted report', () => {", "  pm.response.to.have.status(404);", "});"] }}]
+        }
+      ]
+    }
+  ]
+}
