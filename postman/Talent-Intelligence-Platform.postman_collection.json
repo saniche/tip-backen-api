@@ -1074,11 +1074,19 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
+									"const body = pm.response.json();",
 									"pm.test('returns CV processing status', () => {",
 									"  pm.response.to.have.status(200);",
-									"  const body = pm.response.json();",
-									"  if (body.result_id) pm.collectionVariables.set('tailored_cv_id', body.result_id);",
-									"});"
+									"  pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);",
+									"});",
+									"if (body.status === 'pending' || body.status === 'running') {",
+									"  pm.execution.setNextRequest('Get CV tailoring processing job - success');",
+									"} else if (body.status === 'done') {",
+									"  pm.expect(body.result_id).to.be.a('string').and.not.empty;",
+									"  pm.collectionVariables.set('tailored_cv_id', body.result_id);",
+									"} else {",
+									"  pm.expect.fail(body.error || 'CV tailoring failed');",
+									"}"
 								]
 							}
 						}
