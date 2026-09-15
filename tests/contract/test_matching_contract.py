@@ -18,7 +18,7 @@ def test_matching_contract_ranks_results_and_denies_other_owner(client):
     )
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job.json()["id"]]})
     assert report.status_code == 202
-    report_id = report.json()["report_id"]
+    report_id = report.json()["result_id"]
     detail = client.get(f"/api/v1/matching/reports/{report_id}", headers=headers)
     assert detail.status_code == 200
     assert detail.json()["results"][0]["rank"] == 1
@@ -49,10 +49,7 @@ def test_matching_contract_returns_safe_provider_failure(client, monkeypatch):
     monkeypatch.setattr(matching_service, "get_llm_match_output", fail_matching)
     response = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job["id"]]})
 
-    assert response.status_code == 502
-    assert response.json()["error"] == {
-        "code": "SERVICE_UNAVAILABLE",
-        "message": "External processing failed. Please try again later.",
-        "details": None,
-        "request_id": None,
-    }
+    assert response.status_code == 202
+    processing_job = client.get(f"/api/v1/processing-jobs/{response.json()['id']}", headers=headers)
+    assert processing_job.json()["status"] == "failed"
+    assert processing_job.json()["error"] == "Matching failed"

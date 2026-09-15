@@ -11,7 +11,7 @@ def _profile_and_match(client, email, url):
         "/api/v1/jobs/normalize", headers=headers, json={"url": url, "content": "Python", "title": "Python Engineer"}
     )
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job.json()["id"]]}).json()
-    detail = client.get(f"/api/v1/matching/reports/{report['report_id']}", headers=headers).json()
+    detail = client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()
     return headers, detail["results"][0]["id"]
 
 

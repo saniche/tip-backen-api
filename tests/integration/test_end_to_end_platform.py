@@ -17,7 +17,7 @@ def test_profile_to_cv_acceptance_flow(client):
         json={"url": "https://jobs.test/e2e", "content": "Python FastAPI", "title": "Python Engineer"},
     )
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job.json()["id"]]}).json()
-    detail = client.get(f"/api/v1/matching/reports/{report['report_id']}", headers=headers).json()
+    detail = client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()
     cv = client.post("/api/v1/cv/tailor", headers=headers, json={"matching_id": detail["results"][0]["id"]})
     for _ in range(20):
         status = client.get(f"/api/v1/processing-jobs/{cv.json()['id']}", headers=headers)

@@ -1,25 +1,56 @@
-from fastapi import APIRouter, Depends, HTTPException
+import logging
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth.security import get_current_user
-from shared.database import get_db
-from shared.llm_structured import StructuredProviderError
-from matching.matching_service import create_match_report as persist_match_report
-from shared.models import JobMatchingResult, MatchReport, User
-from shared.schemas import JobMatchingOut, JobMatchingRequest
+from shared.database import SessionLocal, get_db
+from matching.matching_service import create_pending_match_report, process_match_report
+from shared.models import JobMatchingResult, MatchReport, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
+from shared.schemas import JobMatchingRequest, ProcessingJobOut
 
 router = APIRouter(prefix="/matching", tags=["matching"])
+logger = logging.getLogger("tip-api")
 
 
 class MatchCreateRequest(BaseModel):
     job_ids: list[str]
 
 
-@router.post("", status_code=202)
-async def create_match_report(
+async def _run_match_report(processing_job_id: str, report_id: str, user_id: str, job_ids: list[str]) -> None:
+    db = SessionLocal()
+    processing_job = None
+    try:
+        processing_job = db.get(ProcessingJob, processing_job_id)
+        if processing_job is None:
+            return
+        processing_job.status = ProcessingJobStatus.RUNNING
+        db.commit()
+        await process_match_report(db, report_id, user_id, job_ids)
+        processing_job.status = ProcessingJobStatus.DONE
+        processing_job.result_id = report_id
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 - surface via polled status
+        logger.exception("Matching failed", extra={"processing_job_id": processing_job_id})
+        db.rollback()
+        processing_job = db.get(ProcessingJob, processing_job_id)
+        report = db.get(MatchReport, report_id)
+        if processing_job is not None:
+            processing_job.status = ProcessingJobStatus.FAILED
+            processing_job.error = "Matching failed"
+        if report is not None:
+            report.status = "failed"
+        db.commit()
+    finally:
+        db.close()
+
+
+@router.post("", status_code=202, response_model=ProcessingJobOut)
+def create_match_report(
     payload: MatchCreateRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -27,12 +58,15 @@ async def create_match_report(
         raise HTTPException(400, "At least one job id is required")
 
     try:
-        report = await persist_match_report(db, current_user.id, payload.job_ids)
+        report = create_pending_match_report(db, current_user.id, payload.job_ids)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
-    except StructuredProviderError as exc:
-        raise HTTPException(502, "External processing failed. Please try again later.") from exc
-    return {"report_id": report.id, "status": "completed"}
+    processing_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.MATCHING)
+    db.add(processing_job)
+    db.commit()
+    db.refresh(processing_job)
+    background_tasks.add_task(_run_match_report, processing_job.id, report.id, current_user.id, payload.job_ids)
+    return ProcessingJobOut(id=processing_job.id, status=processing_job.status.value, result_id=report.id)
 
 
 @router.get("/reports")
@@ -112,31 +146,12 @@ def delete_match_report(
     db.commit()
 
 
-@router.post("/match", response_model=JobMatchingOut)
-async def match_job(
+@router.post("/match", status_code=202, response_model=ProcessingJobOut)
+def match_job(
     payload: JobMatchingRequest,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     request = MatchCreateRequest(job_ids=[payload.job_id])
-    response = await create_match_report(request, current_user, db)
-    report_id = response["report_id"]
-    result = (
-        db.execute(
-            select(JobMatchingResult)
-            .where(JobMatchingResult.report_id == report_id)
-            .order_by(desc(JobMatchingResult.score))
-        )
-        .scalars()
-        .first()
-    )
-    if result is None:
-        raise HTTPException(404, "Matching result not found")
-    return JobMatchingOut(
-        id=result.id,
-        job_id=result.job_id,
-        score=int(result.score),
-        eligible=result.eligible,
-        scoring_status=result.scoring_status,
-        breakdown=result.breakdown,
-    )
+    return create_match_report(request, background_tasks, current_user, db)

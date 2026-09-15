@@ -16,7 +16,7 @@ def test_cv_processing_persists_markdown_and_expiring_download_url(client):
         json={"url": "https://jobs.test/cv-int", "content": "Python", "title": "Python Engineer"},
     )
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job.json()["id"]]}).json()
-    match_id = client.get(f"/api/v1/matching/reports/{report['report_id']}", headers=headers).json()["results"][0]["id"]
+    match_id = client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()["results"][0]["id"]
     request = client.post("/api/v1/cv/tailor", headers=headers, json={"matching_id": match_id})
     for _ in range(20):
         status = client.get(f"/api/v1/processing-jobs/{request.json()['id']}", headers=headers)
@@ -40,7 +40,7 @@ def test_cv_provider_failure_publishes_no_record(client, monkeypatch):
         json={"url": "https://jobs.test/cv-failure", "content": "Python", "title": "Python Engineer"},
     ).json()
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job["id"]]}).json()
-    match_id = client.get(f"/api/v1/matching/reports/{report['report_id']}", headers=headers).json()["results"][0]["id"]
+    match_id = client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()["results"][0]["id"]
 
     async def fail_cv(*args, **kwargs):
         raise StructuredProviderError("provider unavailable")
@@ -64,7 +64,7 @@ def test_cv_invalid_structured_output_publishes_no_record(client, monkeypatch):
         json={"url": "https://jobs.test/cv-invalid", "content": "Python", "title": "Python Engineer"},
     ).json()
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job["id"]]}).json()
-    match_id = client.get(f"/api/v1/matching/reports/{report['report_id']}", headers=headers).json()["results"][0]["id"]
+    match_id = client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()["results"][0]["id"]
 
     async def invalid_cv(*args, **kwargs):
         raise StructuredProviderError("invalid structured output")
@@ -87,7 +87,7 @@ def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch):
         json={"url": "https://jobs.test/cv-upload-failure", "content": "Python", "title": "Python Engineer"},
     ).json()
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job["id"]]}).json()
-    match_id = client.get(f"/api/v1/matching/reports/{report['report_id']}", headers=headers).json()["results"][0]["id"]
+    match_id = client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()["results"][0]["id"]
 
     def fail_upload(*args, **kwargs):
         raise RuntimeError("storage unavailable")
@@ -113,7 +113,7 @@ def test_later_multi_cv_failure_deletes_earlier_uploaded_blob(client, monkeypatc
             json={"url": f"https://jobs.test/cv-multi-{suffix}", "content": "Python", "title": "Python Engineer"},
         ).json()["id"])
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": job_ids}).json()
-    matching_ids = [item["id"] for item in client.get(f"/api/v1/matching/reports/{report['report_id']}", headers=headers).json()["results"]]
+    matching_ids = [item["id"] for item in client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()["results"]]
     uploaded = []
     deleted = []
 

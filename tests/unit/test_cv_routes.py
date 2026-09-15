@@ -28,7 +28,7 @@ def test_cv_tailoring_and_download_flow(client):
 
     match_response = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job.json()["id"]]})
     assert match_response.status_code == 202
-    report_id = match_response.json()["report_id"]
+    report_id = match_response.json()["result_id"]
 
     report = client.get(f"/api/v1/matching/reports/{report_id}", headers=headers)
     assert report.status_code == 200

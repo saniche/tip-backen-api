@@ -47,6 +47,10 @@
 			"value": ""
 		},
 		{
+			"key": "matching_processing_job_id",
+			"value": ""
+		},
+		{
 			"key": "matching_id",
 			"value": ""
 		},
@@ -640,10 +644,16 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
+									"const body = pm.response.json();",
 									"pm.test('returns job processing status', () => {",
 									"  pm.response.to.have.status(200);",
-									"  pm.expect(pm.response.json()).to.have.property('status');",
-									"});"
+									"  pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);",
+									"});",
+									"if (body.status === 'pending' || body.status === 'running') {",
+									"  pm.execution.setNextRequest('Get job normalization status - success');",
+									"} else if (body.status === 'failed') {",
+									"  pm.expect.fail(body.error || 'Job normalization failed');",
+									"}"
 								]
 							}
 						}
@@ -738,10 +748,48 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test('creates a completed match report', () => {",
+									"pm.test('queues match report processing', () => {",
 									"  pm.response.to.have.status(202);",
-									"  pm.collectionVariables.set('report_id', pm.response.json().report_id);",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.all.keys('id', 'status', 'result_id', 'error');",
+									"  pm.collectionVariables.set('matching_processing_job_id', body.id);",
+									"  pm.collectionVariables.set('report_id', body.result_id);",
 									"});"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Get matching processing status - success",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": "{{api_url}}/processing-jobs/{{matching_processing_job_id}}"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"const body = pm.response.json();",
+									"pm.test('returns matching processing status', () => {",
+									"  pm.response.to.have.status(200);",
+									"  pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);",
+									"});",
+									"if (body.status === 'pending' || body.status === 'running') {",
+									"  pm.execution.setNextRequest('Get matching processing status - success');",
+									"} else if (body.status === 'done') {",
+									"  pm.expect(body.result_id).to.eql(pm.collectionVariables.get('report_id'));",
+									"} else {",
+									"  pm.expect.fail(body.error || 'Matching processing failed');",
+									"}"
 								]
 							}
 						}
@@ -889,9 +937,11 @@
 							"script": {
 								"type": "text/javascript",
 								"exec": [
-									"pm.test('matches a single job', () => {",
-									"  pm.response.to.have.status(200);",
-									"  pm.expect(pm.response.json().job_id).to.eql(pm.collectionVariables.get('job_id'));",
+									"pm.test('queues a single-job match', () => {",
+									"  pm.response.to.have.status(202);",
+									"  const body = pm.response.json();",
+									"  pm.expect(body).to.have.property('id');",
+									"  pm.expect(body).to.have.property('result_id');",
 									"});"
 								]
 							}

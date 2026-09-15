@@ -24,7 +24,7 @@ def test_matching_processing_persists_ranked_results_and_safe_owner_scope(client
     )
 
     assert response.status_code == 202
-    detail = client.get(f"/api/v1/matching/reports/{response.json()['report_id']}", headers=headers).json()
+    detail = client.get(f"/api/v1/matching/reports/{response.json()['result_id']}", headers=headers).json()
     ranks = [item["rank"] for item in detail["results"]]
     assert ranks == sorted(ranks)
     assert all("explanation" in item for item in detail["results"])
@@ -47,5 +47,7 @@ def test_matching_invalid_structured_output_returns_safe_failure(client, monkeyp
     monkeypatch.setattr(matching_service, "get_llm_match_output", invalid_match)
     response = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job["id"]]})
 
-    assert response.status_code == 502
-    assert client.get("/api/v1/matching/reports", headers=headers).json() == []
+    assert response.status_code == 202
+    processing_job = client.get(f"/api/v1/processing-jobs/{response.json()['id']}", headers=headers)
+    assert processing_job.json()["status"] == "failed"
+    assert client.get("/api/v1/matching/reports", headers=headers).json()[0]["status"] == "failed"

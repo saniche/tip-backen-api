@@ -63,7 +63,7 @@ def _view(report: MatchReport, results: list[JobMatchingResult]) -> MatchReportV
     )
 
 
-async def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReportView:
+def create_pending_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReport:
     if not job_ids:
         raise ValueError("At least one job id is required")
     profile = (
@@ -79,6 +79,24 @@ async def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> 
     if any(job.status != "completed" for job in jobs.values()):
         raise ValueError("Job processing has not completed")
 
+    report = MatchReport(user_id=user_id, profile_id=profile.id, status="pending", rules_version="v1")
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+async def process_match_report(db: Session, report_id: str, user_id: str, job_ids: list[str]) -> MatchReportView:
+    report = db.get(MatchReport, report_id)
+    if report is None or report.user_id != user_id:
+        raise ValueError("Match report not found")
+    profile = db.get(UserProfile, report.profile_id)
+    if profile is None:
+        raise ValueError("Profile not found")
+    jobs = {job.id: job for job in db.execute(select(Job).where(Job.id.in_(job_ids))).scalars().all()}
+    if any(job_id not in jobs for job_id in job_ids):
+        raise ValueError("Job not found")
+
     prepared = []
     for job_id in job_ids:
         job = jobs[job_id]
@@ -86,9 +104,6 @@ async def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> 
         scored = build_match_result(llm_output)
         prepared.append((job, llm_output, scored))
 
-    report = MatchReport(user_id=user_id, profile_id=profile.id, rules_version="v1")
-    db.add(report)
-    db.flush()
     persisted = []
     for job, llm_output, scored in prepared:
         result = JobMatchingResult(
@@ -117,8 +132,22 @@ async def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> 
         persisted.append(result)
     for rank, result in enumerate(sorted(persisted, key=lambda item: item.score, reverse=True), start=1):
         result.rank = rank
+    report.status = "completed"
     db.commit()
     return _view(report, persisted)
+
+
+async def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReportView:
+    report = create_pending_match_report(db, user_id, job_ids)
+    try:
+        return await process_match_report(db, report.id, user_id, job_ids)
+    except Exception:
+        db.rollback()
+        persisted_report = db.get(MatchReport, report.id)
+        if persisted_report is not None:
+            db.delete(persisted_report)
+            db.commit()
+        raise
 
 
 def list_match_reports(db: Session, user_id: str) -> list[MatchReportView]:

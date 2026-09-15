@@ -17,4 +17,6 @@ newman run postman/Talent-Intelligence-Platform.postman_collection.json -e postm
 
 The collection includes successful and expected-failure checks for all requested operational,
 authentication, profile, processing job, matching, and CV tailoring routes. The job-normalization
-folder is a prerequisite that supplies a real job for successful matching tests.
+folder is a prerequisite that supplies a real job for successful matching tests. Matching requests
+return `202 Accepted`; the collection polls the matching processing job before requesting report
+results.

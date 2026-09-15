@@ -196,6 +196,7 @@ class CVRequest(Base):
 class ProcessingJobType(str, enum.Enum):
     PROFILE_BUILD = "profile_build"
     JOB_NORMALIZE = "job_normalize"
+    MATCHING = "matching"
     CV_TAILOR = "cv_tailor"
 
 

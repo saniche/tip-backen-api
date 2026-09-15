@@ -44,7 +44,7 @@ def test_matching_report_routes_exist_and_scope_by_owner(client):
         "/api/v1/matching", headers=headers, json={"job_ids": [first.json()["id"], second.json()["id"]]}
     )
     assert response.status_code == 202
-    report_id = response.json()["report_id"]
+    report_id = response.json()["result_id"]
 
     listed = client.get("/api/v1/matching/reports", headers=headers)
     assert listed.status_code == 200

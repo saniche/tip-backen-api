@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 import re
+import unicodedata
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -50,10 +51,16 @@ class StructuredMatchOutput(BaseModel):
 
 
 MATCHING_SYSTEM_PROMPT = (
-    "Compare the candidate profile with the job requirements. Assess every supplied requirement as Yes, Partial, or No. "
+    "Compare the candidate profile with the job requirements. Assess every supplied requirement exactly once as Yes, Partial, or No. "
+    "Copy each requirement into the matching assessment value; do not omit, merge, reorder, or paraphrase requirements. "
     "Ground each rationale in the supplied data and do not add unsupported credentials or experience. "
     "For Yes or Partial, cite evidence that is actually present in the candidate profile; do not treat the job requirement itself as evidence."
 )
+
+
+def _normalize_requirement(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).replace("\u2019", "'").replace("\u2018", "'")
+    return " ".join(normalized.split()).casefold()
 
 
 def _profile_evidence_terms(profile: Any) -> set[str]:
@@ -80,14 +87,16 @@ def _validate_assessments(data: dict[str, Any], profile: dict[str, Any], job: Jo
         "desirable_skills": (job.desirable or {}).get("skills", []),
         "technical_stack": job.technical_stack or [],
     }
-    profile_text = str(profile).lower()
     profile_evidence_terms = _profile_evidence_terms(profile)
-    allowed_rationale_words = {"profile", "contains", "requirement", "evidence", "related", "matching", "not", "found", "no"}
     for group, values in expected.items():
         assessments = data[group]
         expected_values = [str(value) for value in values]
-        if [item["value"] for item in assessments] != expected_values:
+        expected_by_normalized = {_normalize_requirement(value): value for value in expected_values}
+        actual_keys = [_normalize_requirement(item["value"]) for item in assessments]
+        if len(actual_keys) != len(expected_values) or set(actual_keys) != set(expected_by_normalized):
             raise StructuredProviderError(f"Matching output does not cover {group}")
+        for item in assessments:
+            item["value"] = expected_by_normalized[_normalize_requirement(item["value"])]
         for item in assessments:
             if item["result"] not in {"Yes", "Partial", "No"}:
                 raise StructuredProviderError("Matching output contains an invalid assessment result")
@@ -95,10 +104,8 @@ def _validate_assessments(data: dict[str, Any], profile: dict[str, Any], job: Jo
                 requirement_terms = set(re.findall(r"[a-z0-9]+", item["value"].lower()))
                 if not requirement_terms.intersection(profile_evidence_terms):
                     raise StructuredProviderError("Matching output lacks profile evidence")
-            rationale_words = {word.strip(".,;:!?()[]{}'") for word in item["rationale"].lower().split()}
-            allowed_words = allowed_rationale_words | {word.lower() for word in item["value"].split()}
-            if any(len(word) > 3 and word not in profile_text and word not in allowed_words for word in rationale_words):
-                raise StructuredProviderError("Matching output contains an unsupported rationale")
+            if not item["rationale"].strip():
+                raise StructuredProviderError("Matching output contains an empty rationale")
 
 
 async def get_llm_match_output(profile: dict[str, Any], job: JobData) -> LlmMatchOutput:

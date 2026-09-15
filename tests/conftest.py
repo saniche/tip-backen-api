@@ -12,6 +12,7 @@ import cv.cv_tailoring_router as cv_tailoring_router
 import jobs.job_normalizer as job_normalizer
 import jobs.job_service as job_service
 import matching.matching_service as matching_service
+import matching.job_matching_router as job_matching_router
 import cv.cv_tailoring as cv_tailoring
 import matching.llm_matching as llm_matching
 import profile.profile_builder as profile_builder
@@ -25,6 +26,7 @@ def database():
     profile_builder_router.SessionLocal = TestingSessionLocal
     cv_tailoring_router.SessionLocal = TestingSessionLocal
     job_normalizer.SessionLocal = TestingSessionLocal
+    job_matching_router.SessionLocal = TestingSessionLocal
     Base.metadata.create_all(testing_engine)
     yield
     Base.metadata.drop_all(testing_engine)
