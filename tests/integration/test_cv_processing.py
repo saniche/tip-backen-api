@@ -1,7 +1,7 @@
 import time
 
-import cv_tailoring_router
-from llm_structured import StructuredProviderError
+import cv.cv_tailoring_router as cv_tailoring_router
+from shared.llm_structured import StructuredProviderError
 
 
 def test_cv_processing_persists_markdown_and_expiring_download_url(client):

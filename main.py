@@ -5,16 +5,16 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-import auth_router
-import config  # noqa: F401
-import cv_tailoring_router
-import download_router
-import job_matching_router
-import job_normalizer
-import processing_jobs_router
-import profile_builder_router
-from database import Base, engine
-from errors import AppException, translate_exception
+import auth.router as auth_router
+import shared.config as config  # noqa: F401
+import cv.cv_tailoring_router as cv_tailoring_router
+import cv.download_router as download_router
+import matching.job_matching_router as job_matching_router
+import jobs.job_normalizer as job_normalizer
+import shared.processing_jobs_router as processing_jobs_router
+import profile.profile_builder_router as profile_builder_router
+from shared.database import Base, engine
+from shared.errors import AppException, translate_exception
 
 app = FastAPI(title="Job Search Aggregator API")
 

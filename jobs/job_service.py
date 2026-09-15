@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from llm_structured import call_openai_structured
+from shared.llm_structured import call_openai_structured
 
 
 class JobRequirementsOutput(BaseModel):

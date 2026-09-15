@@ -1,6 +1,6 @@
-import matching_service
+import matching.matching_service as matching_service
 
-from llm_structured import StructuredProviderError
+from shared.llm_structured import StructuredProviderError
 
 
 def test_matching_processing_persists_ranked_results_and_safe_owner_scope(client):

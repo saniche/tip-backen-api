@@ -1,16 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
-from database import get_db
-from models import TailoredCVRecord, User
-from storage import download_markdown, generate_temporary_download_url
+from auth.security import get_current_user
+from shared.database import get_db
+from shared.models import TailoredCVRecord, User
+from shared.storage import download_markdown, generate_temporary_download_url
 
 router = APIRouter(tags=["download"])
 
 
 @router.get("/cv/{tailored_cv_id}/download")
-@router.get("/download/{tailored_cv_id}")
 def download_tailored_cv(
     tailored_cv_id: str,
     current_user: User = Depends(get_current_user),

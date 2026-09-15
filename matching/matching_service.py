@@ -3,9 +3,9 @@ from dataclasses import asdict, dataclass, field
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from models import Job, JobMatchingResult, MatchReport, UserProfile
-from pipeline.job_matching import build_match_result
-from pipeline.llm_matching import JobData, get_llm_match_output
+from shared.models import Job, JobMatchingResult, MatchReport, UserProfile
+from matching.job_matching import build_match_result
+from matching.llm_matching import JobData, get_llm_match_output
 
 
 @dataclass

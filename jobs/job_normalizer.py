@@ -4,11 +4,11 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
-from database import SessionLocal, get_db
-from job_service import normalize_job_content
-from models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
-from schemas import JobNormalizeOut, JobNormalizeRequest
+from auth.security import get_current_user
+from shared.database import SessionLocal, get_db
+from jobs.job_service import normalize_job_content
+from shared.models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
+from shared.schemas import JobNormalizeOut, JobNormalizeRequest
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 logger = logging.getLogger("tip-api")

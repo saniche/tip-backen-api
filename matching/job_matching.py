@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from matching_scoring import score_match
-from pipeline.llm_matching import LlmMatchOutput
+from matching.matching_scoring import score_match
+from matching.llm_matching import LlmMatchOutput
 
 
 @dataclass

@@ -3,7 +3,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from llm_structured import StructuredProviderError
+from shared.llm_structured import StructuredProviderError
 
 logger = logging.getLogger("tip-api")
 

@@ -2,9 +2,9 @@ import os
 
 from sqlalchemy import engine_from_config, pool
 
-import config  # noqa: F401
+import shared.config as config  # noqa: F401
 from alembic import context
-from database import Base
+from shared.database import Base
 
 
 def run_migrations_offline() -> None:

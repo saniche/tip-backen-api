@@ -1,6 +1,6 @@
 import pytest
 
-import pipeline.profile_builder as profile_builder
+import profile.profile_builder as profile_builder
 
 
 @pytest.mark.asyncio

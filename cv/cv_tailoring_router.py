@@ -4,10 +4,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
-from cv_service import validate_cv_selection
-from database import SessionLocal, get_db
-from models import (
+from auth.security import get_current_user
+from cv.cv_service import validate_cv_selection
+from shared.database import SessionLocal, get_db
+from shared.models import (
     CVRequest,
     Job,
     JobMatchingResult,
@@ -18,12 +18,12 @@ from models import (
     User,
     UserProfile,
 )
-from pipeline.cv_tailoring import build_tailored_cv
-from pipeline.llm_matching import JobData
-from pipeline.markdown_writer import render_tailored_cv_markdown, suggest_filename
-from schemas import CvTailoringRequest, ProcessingJobOut
-from serialization import dict_to_user_profile
-from storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
+from cv.cv_tailoring import build_tailored_cv
+from matching.llm_matching import JobData
+from cv.markdown_writer import render_tailored_cv_markdown, suggest_filename
+from shared.schemas import CvTailoringRequest, ProcessingJobOut
+from profile.serialization import dict_to_user_profile
+from shared.storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
 
 router = APIRouter(tags=["cv-tailoring"])
 logger = logging.getLogger("tip-api")
@@ -116,7 +116,6 @@ async def _run_cv_tailoring(
 
 
 @router.post("/cv/tailor", status_code=202, response_model=ProcessingJobOut)
-@router.post("/cv-tailoring/tailor", status_code=202, response_model=ProcessingJobOut)
 def tailor_cv(
     payload: CvTailoringRequest,
     background_tasks: BackgroundTasks,

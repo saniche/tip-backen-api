@@ -1,8 +1,8 @@
 import time
 
-import profile_builder_router
-from llm_structured import StructuredProviderError
-from pipeline.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
+import profile.profile_builder_router as profile_builder_router
+from shared.llm_structured import StructuredProviderError
+from profile.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
 
 
 def test_profile_processing_completes_and_preserves_edit(client):

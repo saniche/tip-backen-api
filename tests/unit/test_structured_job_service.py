@@ -1,6 +1,6 @@
 import pytest
 
-import job_service
+import jobs.job_service as job_service
 
 
 @pytest.mark.asyncio

@@ -3,8 +3,8 @@ import logging
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-import llm_structured
-from llm_structured import StructuredProviderError, call_openai_structured
+import shared.llm_structured as llm_structured
+from shared.llm_structured import StructuredProviderError, call_openai_structured
 
 
 class ExampleOutput(BaseModel):

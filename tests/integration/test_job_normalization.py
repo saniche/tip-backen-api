@@ -1,7 +1,7 @@
 import time
 
-import job_normalizer
-from llm_structured import StructuredProviderError
+import jobs.job_normalizer as job_normalizer
+from shared.llm_structured import StructuredProviderError
 
 
 def test_job_normalization_deduplicates_and_exposes_structured_defaults(client):

@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
-from database import Base
+from shared.database import Base
 
 
 def _uuid() -> str:

@@ -6,7 +6,7 @@ reverse needs explicit reconstruction since asdict() flattens nested dataclasses
 
 from dataclasses import asdict
 
-from pipeline.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
+from profile.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
 
 
 def user_profile_to_dict(profile: UserProfile) -> dict:

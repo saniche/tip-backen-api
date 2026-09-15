@@ -51,8 +51,8 @@ def test_postgres_boundary_uses_fake_provider_and_storage():
     from sqlalchemy.exc import IntegrityError
     from sqlalchemy.orm import sessionmaker
 
-    from database import Base
-    from models import Job, JobInterest, User
+    from shared.database import Base
+    from shared.models import Job, JobInterest, User
 
     class FakeJobProvider:
         def extract(self, content):

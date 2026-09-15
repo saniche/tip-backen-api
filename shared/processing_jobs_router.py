@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
-from database import get_db
-from models import ProcessingJob, User
-from schemas import ProcessingJobOut
+from auth.security import get_current_user
+from shared.database import get_db
+from shared.models import ProcessingJob, User
+from shared.schemas import ProcessingJobOut
 
 router = APIRouter(prefix="/processing-jobs", tags=["processing-jobs"])
 

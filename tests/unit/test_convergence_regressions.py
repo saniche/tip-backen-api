@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
-from models import Job
-from pipeline.job_matching import build_match_result
-from pipeline.llm_matching import LlmMatchOutput
-from profile_service import consolidate_profile_fragments
+from shared.models import Job
+from matching.job_matching import build_match_result
+from matching.llm_matching import LlmMatchOutput
+from profile.profile_service import consolidate_profile_fragments
 
 
 def test_profile_consolidation_preserves_user_edit_over_later_extraction():

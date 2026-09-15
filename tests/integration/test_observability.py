@@ -8,6 +8,6 @@ def test_request_id_and_safe_error_contract(client):
 
 
 def test_secret_error_is_redacted():
-    from errors import safe_message
+    from shared.errors import safe_message
 
     assert "secret" not in safe_message("provider failed with API key secret-value").lower()

@@ -5,9 +5,9 @@ from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
-from database import SessionLocal, get_db
-from models import (
+from auth.security import get_current_user
+from shared.database import SessionLocal, get_db
+from shared.models import (
     ProcessingJobType,
     ProfileFileStatus,
     ProfileFragment,
@@ -17,9 +17,9 @@ from models import (
     UserFile,
     UserProfile,
 )
-from pipeline.profile_builder import extract_profile
-from processing_service import complete_processing_job, create_processing_job, fail_processing_job, start_processing_job
-from profile_service import merge_profile_values
+from profile.profile_builder import extract_profile
+from shared.processing_service import complete_processing_job, create_processing_job, fail_processing_job, start_processing_job
+from profile.profile_service import merge_profile_values
 
 router = APIRouter(prefix="", tags=["profile"])
 

@@ -1,8 +1,8 @@
 import pytest
 
-from llm_structured import StructuredProviderError
-from matching_service import create_match_report, get_match_report, list_match_reports
-from models import Job, JobMatchingResult, MatchReport, User, UserProfile
+from shared.llm_structured import StructuredProviderError
+from matching.matching_service import create_match_report, get_match_report, list_match_reports
+from shared.models import Job, JobMatchingResult, MatchReport, User, UserProfile
 
 
 @pytest.mark.asyncio
@@ -102,7 +102,7 @@ async def test_match_provider_failure_does_not_persist_partial_report(database_s
     async def fail_matching(*args, **kwargs):
         raise StructuredProviderError("External processing failed.")
 
-    monkeypatch.setattr("matching_service.get_llm_match_output", fail_matching)
+    monkeypatch.setattr("matching.matching_service.get_llm_match_output", fail_matching)
     with pytest.raises(StructuredProviderError):
         await create_match_report(database_session, user.id, [job.id])
 

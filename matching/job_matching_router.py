@@ -3,12 +3,12 @@ from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
-from database import get_db
-from llm_structured import StructuredProviderError
-from matching_service import create_match_report as persist_match_report
-from models import JobMatchingResult, MatchReport, User
-from schemas import JobMatchingOut, JobMatchingRequest
+from auth.security import get_current_user
+from shared.database import get_db
+from shared.llm_structured import StructuredProviderError
+from matching.matching_service import create_match_report as persist_match_report
+from shared.models import JobMatchingResult, MatchReport, User
+from shared.schemas import JobMatchingOut, JobMatchingRequest
 
 router = APIRouter(prefix="/matching", tags=["matching"])
 

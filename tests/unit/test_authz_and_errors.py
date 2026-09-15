@@ -1,8 +1,8 @@
 import pytest
 from fastapi import HTTPException
 
-from authorization import require_owner_or_admin
-from storage import generate_temporary_download_url
+from auth.authorization import require_owner_or_admin
+from shared.storage import generate_temporary_download_url
 
 
 class DummyUser:

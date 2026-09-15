@@ -1,8 +1,8 @@
 import pytest
 
-from llm_structured import StructuredProviderError
-from pipeline.job_matching import build_match_result
-from pipeline.llm_matching import JobData, LlmMatchOutput, StructuredMatchOutput, get_llm_match_output
+from shared.llm_structured import StructuredProviderError
+from matching.job_matching import build_match_result
+from matching.llm_matching import JobData, LlmMatchOutput, StructuredMatchOutput, get_llm_match_output
 
 
 def test_build_match_result_scores_and_marks_eligible():
@@ -23,7 +23,7 @@ def test_build_match_result_scores_and_marks_eligible():
 
 @pytest.mark.asyncio
 async def test_matching_rejects_incomplete_requirement_assessments(monkeypatch):
-    import pipeline.llm_matching as llm_matching
+    import matching.llm_matching as llm_matching
 
     async def fake_call(*args, **kwargs):
         return StructuredMatchOutput(
@@ -40,7 +40,7 @@ async def test_matching_rejects_incomplete_requirement_assessments(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_matching_rejects_duplicate_requirement_assessments(monkeypatch):
-    import pipeline.llm_matching as llm_matching
+    import matching.llm_matching as llm_matching
 
     async def fake_call(*args, **kwargs):
         assessment = {"result": "Yes", "value": "Python", "rationale": "Profile contains Python."}
@@ -59,7 +59,7 @@ async def test_matching_rejects_duplicate_requirement_assessments(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("result", ["Yes", "Partial"])
 async def test_matching_rejects_positive_assessment_without_profile_evidence(monkeypatch, result):
-    import pipeline.llm_matching as llm_matching
+    import matching.llm_matching as llm_matching
 
     async def fake_call(*args, **kwargs):
         return StructuredMatchOutput(

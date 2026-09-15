@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from models import Job
+from shared.models import Job
 
 
 def test_jobs_are_newest_first_and_saved_date_bounds_work(database_session):

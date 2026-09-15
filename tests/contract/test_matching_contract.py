@@ -1,5 +1,5 @@
-import matching_service
-from llm_structured import StructuredProviderError
+import matching.matching_service as matching_service
+from shared.llm_structured import StructuredProviderError
 
 
 def test_matching_contract_ranks_results_and_denies_other_owner(client):

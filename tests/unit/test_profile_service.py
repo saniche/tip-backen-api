@@ -1,4 +1,4 @@
-from profile_service import consolidate_profile_fragments
+from profile.profile_service import consolidate_profile_fragments
 
 
 def test_consolidate_profile_fragments_uses_user_precedence_over_inferred_values():

@@ -1,9 +1,9 @@
 import pytest
 
-from cv_service import validate_cv_selection
-from pipeline.cv_tailoring import CV_TAILORING_SYSTEM_PROMPT, TailoredCvOutput, _validate_grounded_content
-from pipeline.profile_builder import SkillEntry, UserProfile
-from pipeline.llm_matching import JobData
+from cv.cv_service import validate_cv_selection
+from cv.cv_tailoring import CV_TAILORING_SYSTEM_PROMPT, TailoredCvOutput, _validate_grounded_content
+from profile.profile_builder import SkillEntry, UserProfile
+from matching.llm_matching import JobData
 
 
 def test_cv_selection_rejects_mixed_owners_and_empty_selection():

@@ -1,5 +1,5 @@
-from models import ProcessingJobStatus, ProcessingJobType
-from processing_service import create_processing_job, fail_processing_job, start_processing_job
+from shared.models import ProcessingJobStatus, ProcessingJobType
+from shared.processing_service import create_processing_job, fail_processing_job, start_processing_job
 
 
 def test_processing_lifecycle(database_session):

@@ -8,15 +8,15 @@ os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=
 import pytest
 from fastapi.testclient import TestClient
 
-import cv_tailoring_router
-import job_normalizer
-import job_service
-import matching_service
-import pipeline.cv_tailoring
-import pipeline.llm_matching
-import pipeline.profile_builder
-import profile_builder_router
-from database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
+import cv.cv_tailoring_router as cv_tailoring_router
+import jobs.job_normalizer as job_normalizer
+import jobs.job_service as job_service
+import matching.matching_service as matching_service
+import cv.cv_tailoring as cv_tailoring
+import matching.llm_matching as llm_matching
+import profile.profile_builder as profile_builder
+import profile.profile_builder_router as profile_builder_router
+from shared.database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
 from main import app
 
 
@@ -81,10 +81,10 @@ def structured_ai_provider(monkeypatch):
             )
         raise AssertionError(f"Unexpected operation: {operation}")
 
-    monkeypatch.setattr(pipeline.profile_builder, "call_openai_structured", fake_call)
+    monkeypatch.setattr(profile_builder, "call_openai_structured", fake_call)
     monkeypatch.setattr(job_service, "call_openai_structured", fake_call)
-    monkeypatch.setattr(pipeline.llm_matching, "call_openai_structured", fake_call)
-    monkeypatch.setattr(pipeline.cv_tailoring, "call_openai_structured", fake_call)
+    monkeypatch.setattr(llm_matching, "call_openai_structured", fake_call)
+    monkeypatch.setattr(cv_tailoring, "call_openai_structured", fake_call)
 
 
 @pytest.fixture

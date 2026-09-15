@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from models import ProcessingJob, ProcessingJobStatus, ProcessingJobType
+from shared.models import ProcessingJob, ProcessingJobStatus, ProcessingJobType
 
 
 def create_processing_job(db: Session, user_id: str, job_type: ProcessingJobType) -> ProcessingJob:
