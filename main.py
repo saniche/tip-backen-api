@@ -15,6 +15,7 @@ import shared.processing_jobs_router as processing_jobs_router
 import profile.profile_builder_router as profile_builder_router
 from shared.database import Base, engine
 from shared.errors import AppException, translate_exception
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Job Search Aggregator API")
 
@@ -23,6 +24,14 @@ logger = logging.getLogger("tip-api")
 # Dev convenience only — use Alembic migrations instead of create_all once this runs anywhere real.
 Base.metadata.create_all(bind=engine)
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.ORIGINS.split(","),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.middleware("http")
 async def request_context(request: Request, call_next):

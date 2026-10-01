@@ -10,3 +10,5 @@ OPENAI_MODELS = {
 	"cv_tailoring": os.getenv("OPENAI_CV_TAILORING_MODEL", "gpt-4o-mini"),
 }
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "60"))
+
+ORIGINS = os.getenv("ORIGINS", "http://localhost:4200,http://127.0.0.1:4200,http://localhost:5173,http://127.0.0.1:5173")
