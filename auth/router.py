@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from auth.security import create_access_token, hash_password, verify_password
 from shared.database import get_db
 from shared.models import User
-from shared.schemas import Token, UserCreate
+from shared.schemas import Token, UserCreate, UserLogin
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -25,9 +25,9 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.execute(select(User).where(User.email == form_data.username)).scalar_one_or_none()
-    if not user or not verify_password(form_data.password, user.hashed_password):
+def login(payload: UserLogin, db: Session = Depends(get_db)):
+    user = db.execute(select(User).where(User.email == payload.username)).scalar_one_or_none()
+    if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(401, "Incorrect email or password")
 
     return Token(access_token=create_access_token(user.id))
