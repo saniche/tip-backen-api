@@ -15,7 +15,7 @@ Copy-Item .env.example .env
 uvicorn main:app --reload
 ```
 
-The API is rooted at `/api/v1`. Profile uploads accept PDF, DOCX, and TXT files up to 10 MB.
+The API is rooted at `/api/v1`. Profile uploads accept PDF, DOCX, TXT, and Markdown files up to 10 MB.
 Use Azure Blob Storage in deployed environments; tests and local development use the in-memory
 fallback when `AZURE_STORAGE_CONNECTION_STRING=UseDevelopmentStorage=true`.
 
@@ -59,22 +59,39 @@ Required values include `DATABASE_URL` and `JWT_SECRET_KEY`. Azure Blob Storage 
 temporary download URLs also use `AZURE_STORAGE_ACCOUNT_NAME` and `AZURE_STORAGE_ACCOUNT_KEY`.
 Never commit `.env` or expose these credentials; rotate any credential that has been shared.
 
-### OpenAI structured processing
+### OpenAI Responses API structured processing
 
-Profile extraction, job normalization, matching, and CV tailoring require `OPENAI_API_KEY`. Each
-operation may select a separate Structured Outputs-capable model; the default is `gpt-4o-mini`:
+Profile extraction, job normalization, matching, and CV tailoring use the OpenAI Python SDK's
+Responses API and require `OPENAI_API_KEY`. OpenAI is the default structured LLM provider; each
+operation may select a separate Structured Outputs-capable model, with `gpt-6-luna` as the default.
+Reasoning effort is controlled by `OPENAI_REASONING_EFFORT` and defaults to `medium`:
 
 ```dotenv
 OPENAI_API_KEY=...
-OPENAI_PROFILE_BUILDER_MODEL=gpt-4o-mini
-OPENAI_JOB_NORMALIZER_MODEL=gpt-4o-mini
-OPENAI_JOB_MATCHING_MODEL=gpt-4o-mini
-OPENAI_CV_TAILORING_MODEL=gpt-4o-mini
+OPENAI_PROFILE_BUILDER_MODEL=gpt-6-luna
+OPENAI_JOB_NORMALIZER_MODEL=gpt-6-luna
+OPENAI_JOB_MATCHING_MODEL=gpt-6-luna
+OPENAI_CV_TAILORING_MODEL=gpt-6-luna
+OPENAI_REASONING_EFFORT=medium
 OPENAI_TIMEOUT_SECONDS=60
 ```
 
 Standard automated tests mock OpenAI calls and do not require an API key. Provider failures result
 in a safe service error for matching or a failed processing job for profile, job, and CV workflows.
+
+Profile sessions accept an optional `output_language` when created. It defaults to English and is
+applied to every file in that session, even if the source resumes use another language:
+
+```http
+POST /api/v1/profile/sessions
+Content-Type: application/json
+
+{"output_language": "French"}
+```
+
+Skill levels are `Expert`, `Advanced`, `Intermediate`, or `Beginner`, ordered from highest to
+lowest. They are based only on experience duration and contributions supported by the resume;
+skills without enough evidence for a level are omitted.
 
 ## Validation
 

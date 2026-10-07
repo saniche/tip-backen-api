@@ -1,3 +1,4 @@
+import ast
 import os
 import sqlite3
 import subprocess
@@ -15,6 +16,19 @@ def test_migration_chain_is_complete():
     assert "002_jobs_and_interests.py" in names
     assert "003_matching_reports.py" in names
     assert "004_tailored_cvs.py" in names
+    assert "006_profile_session_output_language.py" in names
+    migration_path = Path("alembic/versions/006_profile_session_output_language.py")
+    migration_tree = ast.parse(migration_path.read_text(encoding="utf-8"))
+    revision_assignment = next(
+        node
+        for node in migration_tree.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "revision"
+            for target in node.targets
+        )
+    )
+    assert len(ast.literal_eval(revision_assignment.value)) <= 32
 
 
 def test_migrations_upgrade_and_create_jobs_constraints():
@@ -33,9 +47,11 @@ def test_migrations_upgrade_and_create_jobs_constraints():
         with sqlite3.connect(database_path) as connection:
             job_indexes = {row[1] for row in connection.execute("PRAGMA index_list('jobs')")}
             interest_indexes = {row[1] for row in connection.execute("PRAGMA index_list('job_interests')")}
+            session_columns = {row[1]: row[4] for row in connection.execute("PRAGMA table_info('profile_sessions')")}
         assert "ix_jobs_created_at" in job_indexes
         assert "ix_jobs_submitter_id" in job_indexes
         assert "ix_job_interests_user_job" in interest_indexes
+        assert session_columns["output_language"] == "'English'"
     finally:
         try:
             database_path.unlink(missing_ok=True)

@@ -6,6 +6,8 @@ pydantic>=2.0
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
+python-docx
 python-dotenv
+openai
 httpx
 azure-storage-blob

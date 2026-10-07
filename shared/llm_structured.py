@@ -23,10 +23,10 @@ import time
 from abc import ABC, abstractmethod
 from typing import Type, TypeVar
 
-import httpx
+from openai import AsyncOpenAI, OpenAIError
 from pydantic import BaseModel
 
-from shared.config import OPENAI_MODELS, OPENAI_TIMEOUT_SECONDS
+from shared.config import OPENAI_MODELS, OPENAI_REASONING_EFFORT, OPENAI_TIMEOUT_SECONDS
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger("tip-api")
@@ -51,7 +51,7 @@ class StructuredLLMProvider(ABC):
 
 
 class OpenAIProvider(StructuredLLMProvider):
-    """Calls OpenAI's Chat Completions API in strict json_schema mode."""
+    """Calls OpenAI's Responses API for typed structured output."""
 
     def __init__(self, models: dict[str, str] | None = None, timeout_seconds: float | None = None):
         self._models = OPENAI_MODELS if models is None else models
@@ -71,27 +71,18 @@ class OpenAIProvider(StructuredLLMProvider):
         if not api_key:
             raise StructuredProviderError("External processing is not configured.")
         selected_model = self._model_for(operation, model)
-        schema = schema_model.model_json_schema()
         try:
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json={
-                        "model": selected_model,
-                        "temperature": 0,
-                        "response_format": {
-                            "type": "json_schema",
-                            "json_schema": {"name": schema_model.__name__, "schema": schema, "strict": True},
-                        },
-                        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                    },
+            async with AsyncOpenAI(api_key=api_key, timeout=self._timeout_seconds) as client:
+                response = await client.responses.parse(
+                    model=selected_model,
+                    instructions=system,
+                    input=user,
+                    text_format=schema_model,
+                    reasoning={"effort": OPENAI_REASONING_EFFORT},
                 )
-                response.raise_for_status()
-                message = response.json()["choices"][0]["message"]
-            if message.get("refusal") or not message.get("content"):
+            if response.output_parsed is None:
                 raise StructuredProviderError("External processing did not return a usable result.")
-            result = schema_model.model_validate_json(message["content"])
+            result = response.output_parsed
             logger.info(
                 "Structured provider completed",
                 extra={
@@ -111,14 +102,34 @@ class OpenAIProvider(StructuredLLMProvider):
                 },
             )
             raise
-        except (httpx.HTTPError, KeyError, TypeError, ValueError) as exc:
+        except (OpenAIError, KeyError, TypeError, ValueError) as exc:
+            error_metadata = {
+                "operation": operation,
+                "model": selected_model,
+                "duration_ms": int((time.perf_counter() - started_at) * 1000),
+                "error_type": type(exc).__name__,
+            }
+            for attribute in ("status_code", "request_id", "code", "param", "type"):
+                value = getattr(exc, attribute, None)
+                if isinstance(value, (int, str)):
+                    error_metadata[f"openai_{attribute}"] = value
+            visible_details = ", ".join(
+                f"{key}={error_metadata[key]}"
+                for key in (
+                    "error_type",
+                    "model",
+                    "openai_status_code",
+                    "openai_code",
+                    "openai_type",
+                    "openai_param",
+                    "openai_request_id",
+                )
+                if key in error_metadata
+            )
             logger.warning(
-                "Structured provider failed",
-                extra={
-                    "operation": operation,
-                    "model": selected_model,
-                    "duration_ms": int((time.perf_counter() - started_at) * 1000),
-                },
+                "Structured provider failed (%s)",
+                visible_details,
+                extra=error_metadata,
             )
             raise StructuredProviderError("External processing failed.") from exc
 

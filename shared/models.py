@@ -60,6 +60,7 @@ class ProfileSession(Base):
     status: Mapped[ProfileSessionStatus] = mapped_column(
         Enum(ProfileSessionStatus), default=ProfileSessionStatus.CREATED
     )
+    output_language: Mapped[str] = mapped_column(String, default="English", server_default="English")
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

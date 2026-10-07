@@ -40,9 +40,10 @@ CV_TAILORING_SYSTEM_PROMPT = (
 
 
 def _source_values(profile, job_data) -> tuple[set[str], set[str], set[str], set[str], set[str]]:
+    profile_skill_items = getattr(profile, "Skills", getattr(profile, "TechnicalSkills", [])) or []
     profile_skills = {
         str(item.Name if hasattr(item, "Name") else item).strip().lower()
-        for item in getattr(profile, "TechnicalSkills", []) or []
+        for item in profile_skill_items
     }
     job_skills = {str(item).strip().lower() for item in getattr(job_data, "technical_stack", []) or []}
     summary_sources = {value for value in (getattr(profile, "Summary", ""), getattr(job_data, "summary", ""), getattr(job_data, "title", "")) if value}
@@ -52,10 +53,27 @@ def _source_values(profile, job_data) -> tuple[set[str], set[str], set[str], set
         for value in (item.Summary, item.Title, item.Company)
         if value
     }
+    experience_sources.update(
+        value
+        for item in getattr(profile, "WorkExperiences", []) or []
+        for value in (getattr(item, "RealisationDescription", None) or [])
+        if value
+    )
     education_sources = {
         value
         for item in getattr(profile, "Education", []) or []
-        for value in (item.Degree, item.Institution, item.Field, item.Year)
+        for value in (
+            getattr(item, "Degree", None),
+            getattr(item, "Institution", None),
+            getattr(item, "Field", None),
+            getattr(item, "Year", None),
+            getattr(item, "Location", None),
+            "Completed"
+            if getattr(item, "Completed", None) is True
+            else "Not completed"
+            if getattr(item, "Completed", None) is False
+            else None,
+        )
         if value
     }
     certification_sources = {
@@ -104,8 +122,11 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
 
 
 async def build_tailored_cv(profile, job_data, match_score: int, output_language: str = "English") -> TailoredCv:
+    profile_context = dict(getattr(profile, "__dict__", {}))
+    profile_context.pop("CoreCompetences", None)
+    profile_context.pop("AdditionalInformations", None)
     context = {
-        "profile": getattr(profile, "__dict__", {}),
+        "profile": profile_context,
         "job": getattr(job_data, "__dict__", {}),
         "match_score": match_score,
         "output_language": output_language,

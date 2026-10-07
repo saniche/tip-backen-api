@@ -6,6 +6,7 @@ PROFILE_RESPONSE = {
     "LinkedIn": "",
     "Summary": "Python engineer",
     "SoftSkills": [],
+    "CoreCompetences": [],
     "Languages": ["English"],
     "Certifications": [],
     "WorkExperiences": [],
@@ -13,7 +14,8 @@ PROFILE_RESPONSE = {
     "TotalYearsOfExperience": 0,
     "PreferredJobTitles": [],
     "PreferredLocations": [],
-    "TechnicalSkills": [{"Name": "Python", "Level": "medium"}],
+    "Skills": [{"Name": "Python", "Level": "Intermediate"}],
+    "AdditionalInformations": [],
 }
 
 JOB_RESPONSE = {

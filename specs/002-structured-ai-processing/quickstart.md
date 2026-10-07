@@ -6,8 +6,10 @@
 - Set `OPENAI_API_KEY` locally; do not commit it.
 - Configure the four operation-specific model identifiers: `OPENAI_PROFILE_BUILDER_MODEL`,
   `OPENAI_JOB_NORMALIZER_MODEL`, `OPENAI_JOB_MATCHING_MODEL`, and
-  `OPENAI_CV_TAILORING_MODEL`. They default to `gpt-4o-mini`; optionally set
-  `OPENAI_TIMEOUT_SECONDS` (default: `60`).
+  `OPENAI_CV_TAILORING_MODEL`. They default to `gpt-6-luna`. Reasoning effort is configurable
+  with `OPENAI_REASONING_EFFORT` (default: `medium`); `OPENAI_TIMEOUT_SECONDS` defaults to `60`.
+- Profile sessions accept an `output_language` value at creation (default: `English`). The same
+  language is applied to every resume uploaded into that session.
 - Start the API from the repository root.
 
 ```powershell
@@ -32,7 +34,8 @@ Expected results:
 
 ## Manual End-to-End Smoke Test
 
-1. Register and authenticate a test user with the existing Postman collection.
+1. Register and authenticate a test user with the existing Postman collection. Create a profile
+   session with `{"output_language":"French"}` to request French output; omit the field for English.
 2. Upload a sanitized resume, poll the profile job, and verify structured skills and experience.
 3. Normalize a sanitized job posting, poll its job, and verify requirements and responsibilities.
 4. Create a match report and verify assessments, score, eligibility, and rationale.

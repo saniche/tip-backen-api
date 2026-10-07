@@ -17,11 +17,14 @@ The provider result adapts to `pipeline.profile_builder.UserProfile` and its sto
 | Field group | Fields | Rules |
 |-------------|--------|-------|
 | Identity | name, email, phone, location, LinkedIn | Required nullable strings; only source-supported values |
-| Summary/preferences | summary, soft skills, languages, preferred titles/locations | Collections default empty; summary is source-grounded |
-| Experience | company, title, start/end dates, summary | Complete typed entries; unavailable fields are null |
-| Education | institution, degree, field, year | Complete typed entries; unavailable fields are null |
+| Summary/preferences | summary, soft skills, languages, preferred titles/locations | Collections default empty; summary is source-grounded and translated to the requested output language |
+| Experience | company, title, start/end dates, summary, realization descriptions | Complete typed entries; descriptions contain source-supported accomplishments; unavailable fields are null |
+| Education | institution, location, degree, field, year, completed | Completion is boolean; unavailable location is null |
 | Certifications | name, issuer, year | Complete typed entries; non-empty name required |
-| Technical skills | name, level | Non-empty name; existing level vocabulary |
+| Core competences | core competences | Source-supported list; empty when absent |
+| Skills | name, level | Levels are `Expert`, `Advanced`, `Intermediate`, or `Beginner`, sorted descending; derive only from source duration and contributions; omit unsupported skills; stored under the existing `skills` key |
+| Additional information | additional information | Source-supported list; empty when absent |
+| Output language | user-selected session language | Defaults to English; applies to extracted human-readable content irrespective of source language |
 | Experience total | total years | Non-negative integer; no unsupported inference |
 
 ## Structured Job Output

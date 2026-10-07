@@ -38,9 +38,9 @@ def structured_ai_provider(monkeypatch):
         if operation == "profile_builder":
             return schema_model(
                 Name="Test Candidate", Email="", Phone="", Location="", LinkedIn="", Summary="Python engineer",
-                SoftSkills=[], Languages=["English"], Certifications=[], WorkExperiences=[], Education=[],
+                SoftSkills=[], CoreCompetences=[], Languages=["English"], Certifications=[], WorkExperiences=[], Education=[],
                 TotalYearsOfExperience=0, PreferredJobTitles=[], PreferredLocations=[],
-                TechnicalSkills=[{"Name": "Python", "Level": "medium"}],
+                Skills=[{"Name": "Python", "Level": "Intermediate"}], AdditionalInformations=[],
             )
         if operation == "job_normalizer":
             return schema_model(

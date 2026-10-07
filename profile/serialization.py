@@ -17,11 +17,11 @@ def dict_to_user_profile(d: dict) -> UserProfile:
     if not isinstance(d, dict):
         return UserProfile()
 
-    raw_skills = d.get("TechnicalSkills", d.get("skills", []))
+    raw_skills = d.get("Skills", d.get("TechnicalSkills", d.get("skills", [])))
     if isinstance(raw_skills, list):
-        technical_skills = [SkillEntry(**s) if isinstance(s, dict) else SkillEntry(Name=str(s)) for s in raw_skills]
+        skills = [SkillEntry(**s) if isinstance(s, dict) else SkillEntry(Name=str(s)) for s in raw_skills]
     else:
-        technical_skills = [SkillEntry(Name=str(raw_skills))] if raw_skills else []
+        skills = [SkillEntry(Name=str(raw_skills))] if raw_skills else []
 
     def as_list(key: str, fallback: list | None = None) -> list:
         value = d.get(key, fallback or [])
@@ -35,6 +35,10 @@ def dict_to_user_profile(d: dict) -> UserProfile:
         LinkedIn=str(d.get("LinkedIn") or d.get("linkedin") or ""),
         Summary=str(d.get("Summary") or d.get("summary") or ""),
         SoftSkills=[str(item) for item in as_list("SoftSkills", d.get("soft_skills", []))],
+        CoreCompetences=[str(item) for item in as_list("CoreCompetences", d.get("core_competences", []))],
+        AdditionalInformations=[
+            str(item) for item in as_list("AdditionalInformations", d.get("additional_informations", []))
+        ],
         Languages=[str(item) for item in as_list("Languages", d.get("languages", []))],
         Certifications=[
             CertificateEntry(**c) if isinstance(c, dict) else CertificateEntry(Name=str(c))
@@ -51,5 +55,5 @@ def dict_to_user_profile(d: dict) -> UserProfile:
         TotalYearsOfExperience=int(d.get("TotalYearsOfExperience") or d.get("total_years_of_experience") or 0),
         PreferredJobTitles=[str(item) for item in as_list("PreferredJobTitles", d.get("preferred_job_titles", []))],
         PreferredLocations=[str(item) for item in as_list("PreferredLocations", d.get("preferred_locations", []))],
-        TechnicalSkills=technical_skills,
+        Skills=skills,
     )
