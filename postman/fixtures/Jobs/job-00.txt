@@ -1,0 +1,22 @@
+Backend Engineer
+Northstar Web Services
+Ottawa, Ontario
+Full-time
+Salary: CAD $65,000-$82,000 per year
+
+## About the role
+
+We are looking for a junior backend engineer to help maintain web APIs and data services. This role is suitable for someone with foundational development experience who is ready to grow with a small team.
+
+## Responsibilities
+
+- Build and update API endpoints using Python.
+- Work with PostgreSQL to retrieve and update application data.
+- Investigate routine bugs and add basic automated tests.
+- Update technical documentation and participate in code reviews.
+
+## Requirements
+
+- Familiarity with Python and REST APIs.
+- Basic SQL and relational database knowledge.
+- Good communication and willingness to learn.

@@ -1,0 +1,23 @@
+Senior .NET Developer
+Maple Leaf Digital Solutions
+Ottawa, Ontario
+Full-time
+Salary: CAD $90,000-$115,000 per year
+
+## About the role
+
+We are seeking an experienced .NET developer to contribute to client projects and help maintain web applications and services. The role includes collaboration with developers and client teams.
+
+## Responsibilities
+
+- Develop and maintain applications and APIs using C# and .NET.
+- Contribute to design discussions, code reviews, and technical documentation.
+- Work with SQL databases and REST or SOAP integrations.
+- Support deployments and ongoing application maintenance.
+
+## Requirements
+
+- Professional experience with C# and .NET development.
+- Familiarity with APIs, SQL Server, and Git.
+- Clear communication and ability to work collaboratively.
+- Azure or CI/CD experience is an asset.

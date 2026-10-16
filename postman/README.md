@@ -15,6 +15,43 @@ Run it from the repository root with Newman:
 newman run postman/Talent-Intelligence-Platform.postman_collection.json -e postman/Talent-Intelligence-Platform.local.postman_environment.json
 ```
 
+for jobcontent variation use this
+
+```powershell
+ .\postman\multi-job-process.ps1
+```
+
+for single jobcontent variation use this
+
+```powershell
+ .\postman\single-job-process.ps1
+```
+
+and follow with
+
+```powershell
+newman run postman/Talent-Intelligence-Platform.postman_collection.json -e postman/Talent-Intelligence-Platform.local.postman_environment.json -d postings.json
+```
+
+some usefules variation
+**Force a single URL source for the whole run**
+
+```powershell
+newman run collection.json -d postings.json --env-var "jobSource=indeed"
+```
+
+**Run only the first 5 postings**
+
+```powershell
+newman run collection.json -d postings.json -n 5
+```
+
+**Export results for CI**
+
+```powershell
+newman run collection.json -d postings.json -r cli,junit --reporter-junit-export results.xml
+```
+
 The collection includes successful and expected-failure checks for all requested operational,
 authentication, profile, processing job, matching, and CV tailoring routes. The job-normalization
 folder is a prerequisite that supplies a real job for successful matching tests. Matching requests

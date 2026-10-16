@@ -1,0 +1,37 @@
+Jane Doe
+Backend Engineer
+
+Ottawa, Ontario, Canada
+jane.doe@example.com
+
+## Profile
+
+Junior backend engineer with experience building and maintaining web APIs and data services. Comfortable working with Python and relational databases, collaborating with a small team, and learning new tools.
+
+## Skills
+
+- Python and FastAPI
+- REST API development
+- SQL and PostgreSQL
+- Debugging and basic testing
+- Git and teamwork
+
+## Work Experience
+
+### Junior Backend Developer
+
+Northstar Web Services -- Ottawa (2023 -- 2025)
+
+- Built and maintained REST API endpoints using Python and FastAPI.
+- Queried and updated application data in PostgreSQL.
+- Investigated and fixed routine bugs with guidance from senior developers.
+- Added basic tests and updated API documentation.
+- Participated in code reviews and team planning.
+
+## Education
+
+Diploma in Computer Programming -- Ottawa (2023)
+
+## Languages
+
+- English: Fluent

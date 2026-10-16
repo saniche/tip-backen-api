@@ -1,14 +1,14 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from sqlalchemy import desc, select
+from sqlalchemy import DateTime, case, cast, desc, func, select
 from sqlalchemy.orm import Session
 
 from auth.security import get_current_user
-from shared.database import SessionLocal, get_db
 from jobs.job_service import normalize_job_content
+from shared.database import SessionLocal, get_db
 from shared.models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
-from shared.schemas import JobNormalizeOut, JobNormalizeRequest
+from shared.schemas import JobNormalizeOut, JobNormalizeRequest, NormalizedJobHeader, NormalizedJobsResponse
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 logger = logging.getLogger("tip-api")
@@ -123,6 +123,70 @@ def list_jobs(
         }
         for job in db.execute(query).scalars()
     ]
+
+
+def _contains_pattern(value: str) -> str:
+    escaped = value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+def _posting_date_order_expression(db: Session):
+    dialect_name = db.get_bind().dialect.name
+    if dialect_name == "sqlite":
+        return func.julianday(Job.posting_date)
+    if dialect_name == "postgresql":
+        valid_date = func.pg_input_is_valid(Job.posting_date, "timestamp with time zone")
+        return case(
+            (valid_date, cast(Job.posting_date, DateTime(timezone=True))),
+            else_=None,
+        )
+    raise RuntimeError(f"Unsupported database dialect for posting-date ordering: {dialect_name}")
+
+
+@router.get("/normalized", response_model=NormalizedJobsResponse)
+def list_normalized_jobs(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    title: str | None = None,
+    company: str | None = None,
+    location: str | None = None,
+    source: str | None = None,
+):
+    filters = [Job.status == "completed"]
+    for value, column in (
+        (title, Job.title),
+        (company, Job.company),
+        (location, Job.location),
+    ):
+        if value and value.strip():
+            filters.append(column.ilike(_contains_pattern(value), escape="\\"))
+
+    total = db.scalar(select(func.count(Job.id)).where(*filters)) or 0
+    posting_date_order = _posting_date_order_expression(db)
+    start = (page - 1) * limit
+    rows = list(
+        db.execute(
+            select(Job.id, Job.title, Job.company, Job.location, Job.posting_date, Job.source)
+            .where(*filters)
+            .order_by(posting_date_order.desc().nulls_last(), Job.id.asc())
+            .offset(start)
+            .limit(limit)
+        ).all()
+    )
+    items = [
+        NormalizedJobHeader(
+            id=row.id,
+            title=row.title,
+            company=row.company,
+            location=row.location,
+            posting_date=row.posting_date,
+            source=row.source,
+        )
+        for row in rows
+    ]
+    return NormalizedJobsResponse(items=items, total=total, page=page, limit=limit)
 
 
 @router.get("/{job_id}")

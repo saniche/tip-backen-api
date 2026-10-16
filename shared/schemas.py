@@ -22,6 +22,26 @@ class PaginatedResponse(BaseModel):
     limit: int = 50
 
 
+class NormalizedJobHeader(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    id: str
+    title: str
+    company: str | None
+    location: str | None
+    posting_date: str | None = Field(serialization_alias="postingDate")
+    source: str | None
+
+
+class NormalizedJobsResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[NormalizedJobHeader]
+    total: int
+    page: int = 1
+    limit: int = 20
+
+
 class JobRequirements(BaseModel):
     model_config = ConfigDict(extra="forbid")
     qualifications: list[str]
