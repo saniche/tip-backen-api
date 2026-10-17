@@ -1,22 +1,76 @@
-Backend Engineer
-Northstar Web Services
-Ottawa, Ontario
-Full-time
-Salary: CAD $65,000-$82,000 per year
+Sales representative
+East Angus Grocery
+·
+3.7
+Ottawa, ON
+De 50 000 $ à 190 000 $ par an
+ -  
+Temps partiel, Temps plein
+Postuler
 
-## About the role
 
-We are looking for a junior backend engineer to help maintain web APIs and data services. This role is suitable for someone with foundational development experience who is ready to grow with a small team.
 
-## Responsibilities
+Détails du poste
+De 50 000 $ à 190 000 $ par an
+Assurance Dentaire, Tenue Décontractée, Assurance Maladie Complémentaire, Travail à domicile, Événements d'Entreprise, Heures d'arrivée et de départ flexibles, Stationnement sur place
+Temps partiel, Temps plein
+Ottawa, ON
+Description complète du poste
+Join our passionate team at East Angus Grocery! We are looking for ambitious individuals who want to take on new challenges and determine their own income. At East Angus Grocery, we create a family-friendly and friendly environment where everyone can thrive and achieve their ambitions, and our representatives are named Food Advisors.
 
-- Build and update API endpoints using Python.
-- Work with PostgreSQL to retrieve and update application data.
-- Investigate routine bugs and add basic automated tests.
-- Update technical documentation and participate in code reviews.
+What we offer you:
 
-## Requirements
+Flexible schedules: Choose the schedule that suits you best, part-time or full-time. We understand the importance of balancing professional and personal life.
+Autonomous work: You have the freedom to structure your schedule according to your personal and professional preferences. Whether you prefer to work full-time or part-time, our model allows you to choose the hours that best suit your lifestyle, thus offering an optimal balance between your personal and professional obligations.
+Unparalleled remuneration: Our remuneration far exceeds market standards. We value your work and your efforts.
+Play and relaxation spaces: Our offices are equipped with spaces dedicated to entertainment and relaxation. Enjoy convivial moments with your colleagues in a friendly environment.
+Corporate events: We regularly organize events to strengthen team spirit and celebrate our successes together. Be part of a warm and committed community.
+At East Angus Grocery, we place great importance on the well-being of our employees. We do everything we can to create an environment where you will feel fulfilled and valued.
 
-- Familiarity with Python and REST APIs.
-- Basic SQL and relational database knowledge.
-- Good communication and willingness to learn.
+Job Description:
+
+NO SOLICITATION REQUIRED!
+
+As a Food Advisor at East Angus Grocery, you will have the incredible opportunity to present our company, our unique grocery alternative, and our exceptionally high-quality products directly to customers during appointments provided by East Angus Grocery.
+
+We are proud to offer an innovative alternative to traditional grocery shopping. We provide our customers with a personalized and convenient shopping experience by supplying a carefully selected range of high-quality products. As a Food Advisor, you will be the face of this alternative and will be able to enthusiastically share its unique benefits.
+
+During the appointments provided by East Angus Grocery, you will have the opportunity to meet clients directly and present our company, our values, and our food offerings. Highlight the exceptional quality of our products, their local origin, and the health and well-being benefits they provide. Also, explain how our alternative to traditional grocery shopping simplifies our clients' lives by offering convenience and practicality.
+
+We understand the importance of supporting our Food Advisors at East Angus Grocery. In addition to the appointments provided, we offer you a dedicated team that will provide continuous support. Take advantage of extensive training to develop your communication and sales skills, as well as resources to assist you daily. We value your professional growth and provide you with the means to succeed.
+
+Who we are:
+
+We are a young, family-owned business rapidly expanding in Quebec. Our mission is to optimally meet the food needs of households in our beautiful province by offering a unique service and competitive market offering. By encouraging local producers, we aim to develop a business here.
+
+The benefits of working at East Angus Grocery:
+
+Dynamic team: You will have the opportunity to interact with a dynamic team that wants to see you grow within the company and develop your full potential.
+Discounts on East Angus Grocery products: Enjoy advantageous discounts on our products.
+Contribution to the development of a local business: Join us in our mission to develop a local business and support local producers.
+Professional development: At East Angus Grocery, you can evolve at your own pace in a healthy and understanding environment. We will encourage you to develop your skills and achieve your goals.
+If you are a charismatic, resourceful person comfortable in public, you are the person we are looking for. Join our team now and discover a rewarding professional experience, don't miss this exceptional opportunity!
+
+Job Types: Full-time, Part-time
+
+Pay: $50,000.00-$190,000.00 per year
+
+Expected hours: 40 per week
+
+Benefits:
+
+Casual dress
+Company events
+Dental care
+Extended health care
+Flexible schedule
+On-site parking
+Work from home
+Application question(s):
+
+Do you have your own vehicle?
+What does your availability look like?
+Experience:
+
+sales: 1 year (preferred)
+Work Location: In person
