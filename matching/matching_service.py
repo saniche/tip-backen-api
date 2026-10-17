@@ -28,10 +28,17 @@ class MatchReportView:
 
 
 def _job_data(job: Job) -> JobData:
+    required = job.required
+    desirable = job.desirable
+    if isinstance(required, list):
+        # Flat requirements have no qualification/skill split; keep them on the flexible skill path.
+        required = {"qualifications": [], "skills": required}
+    if isinstance(desirable, list):
+        desirable = {"qualifications": [], "skills": desirable}
     return JobData(
         title=job.title,
-        required=job.required,
-        desirable=job.desirable,
+        required=required,
+        desirable=desirable,
         technical_stack=job.technical_stack,
         key_responsibilities=job.key_responsibilities,
         company=job.company,

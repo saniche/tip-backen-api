@@ -17,7 +17,8 @@ def test_migration_chain_is_complete():
     assert "003_matching_reports.py" in names
     assert "004_tailored_cvs.py" in names
     assert "006_profile_session_output_language.py" in names
-    migration_path = Path("alembic/versions/006_profile_session_output_language.py")
+    assert "007_job_additionals.py" in names
+    migration_path = Path("alembic/versions/007_job_additionals.py")
     migration_tree = ast.parse(migration_path.read_text(encoding="utf-8"))
     revision_assignment = next(
         node
@@ -48,10 +49,12 @@ def test_migrations_upgrade_and_create_jobs_constraints():
             job_indexes = {row[1] for row in connection.execute("PRAGMA index_list('jobs')")}
             interest_indexes = {row[1] for row in connection.execute("PRAGMA index_list('job_interests')")}
             session_columns = {row[1]: row[4] for row in connection.execute("PRAGMA table_info('profile_sessions')")}
+            job_columns = {row[1]: row[4] for row in connection.execute("PRAGMA table_info('jobs')")}
         assert "ix_jobs_created_at" in job_indexes
         assert "ix_jobs_submitter_id" in job_indexes
         assert "ix_job_interests_user_job" in interest_indexes
         assert session_columns["output_language"] == "'English'"
+        assert job_columns["additionals"] == "'[]'"
     finally:
         try:
             database_path.unlink(missing_ok=True)

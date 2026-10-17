@@ -105,9 +105,10 @@ class Job(Base):
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     posting_date: Mapped[str | None] = mapped_column(String, nullable=True)
     key_responsibilities: Mapped[list] = mapped_column(JSON, default=list)
-    required: Mapped[dict] = mapped_column(JSON, default=dict)  # {"qualifications": [...], "skills": [...]}
-    desirable: Mapped[dict] = mapped_column(JSON, default=dict)
+    required: Mapped[dict | list] = mapped_column(JSON, default=dict)
+    desirable: Mapped[dict | list] = mapped_column(JSON, default=dict)
     technical_stack: Mapped[list] = mapped_column(JSON, default=list)
+    additionals: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String, default="completed")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     submitter_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)

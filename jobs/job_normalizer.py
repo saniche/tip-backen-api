@@ -21,7 +21,11 @@ SYSTEM_PROMPT = (
 )
 
 
-async def _run_job_normalization(processing_job_id: str, job_id: str) -> None:
+async def _run_job_normalization(
+    processing_job_id: str,
+    job_id: str,
+    client_metadata: dict[str, str | None] | None = None,
+) -> None:
     db = SessionLocal()
     try:
         processing_job = db.get(ProcessingJob, processing_job_id)
@@ -31,9 +35,13 @@ async def _run_job_normalization(processing_job_id: str, job_id: str) -> None:
         processing_job.status = ProcessingJobStatus.RUNNING
         job.status = "processing"
         db.commit()
-        structured = await normalize_job_content(job.summary or "")
+        structured = await normalize_job_content(job.url or "", job.summary or "")
+        for field in ("title", "company", "location"):
+            if client_metadata and client_metadata.get(field) is not None:
+                structured[field] = client_metadata[field]
         for key, value in structured.items():
-            setattr(job, key, value)
+            database_field = {"requirements": "required", "desirables": "desirable"}.get(key, key)
+            setattr(job, database_field, value)
         job.status = "completed"
         processing_job.status = ProcessingJobStatus.DONE
         processing_job.result_id = job.id
@@ -65,7 +73,7 @@ def normalize_job(
         return {"id": existing.id, "status": "existing"}
     job = Job(
         url=payload.url,
-        title=payload.title or payload.content.splitlines()[0][:200],
+        title=payload.title if payload.title is not None else "",
         company=payload.company,
         location=payload.location,
         summary=payload.content,
@@ -78,12 +86,17 @@ def normalize_job(
     db.commit()
     db.refresh(job)
     db.refresh(processing_job)
-    background_tasks.add_task(_run_job_normalization, processing_job.id, job.id)
+    background_tasks.add_task(
+        _run_job_normalization,
+        processing_job.id,
+        job.id,
+        {"title": payload.title, "company": payload.company, "location": payload.location},
+    )
     return {
         "id": job.id,
         "status": "processing",
         "processing_job_id": processing_job.id,
-        "title": job.title,
+        "title": payload.title,
         "url": job.url,
         "created_at": job.created_at,
     }
@@ -200,11 +213,15 @@ def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Ses
         "title": job.title,
         "company": job.company,
         "location": job.location,
+        "salary": job.salary,
+        "source": job.source,
+        "posting_date": job.posting_date,
         "summary": job.summary,
         "key_responsibilities": job.key_responsibilities,
-        "required": job.required,
-        "desirable": job.desirable,
+        "requirements": job.required,
+        "desirables": job.desirable,
         "technical_stack": job.technical_stack,
+        "additionals": job.additionals,
         "status": job.status,
     }
 

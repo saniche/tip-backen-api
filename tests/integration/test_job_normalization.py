@@ -12,9 +12,9 @@ def test_job_normalization_deduplicates_and_exposes_structured_defaults(client):
     payload = {
         "url": "https://jobs.test/integration",
         "content": "Python Engineer\nBuild APIs with FastAPI",
-        "title": "Python Engineer",
-        "company": "Acme",
-        "location": "Remote",
+        "title": "Client Python Engineer",
+        "company": "Client Acme",
+        "location": "Client Remote",
     }
     first = client.post("/api/v1/jobs/normalize", headers=headers, json=payload)
     second = client.post("/api/v1/jobs/normalize", headers=headers, json=payload)
@@ -28,9 +28,45 @@ def test_job_normalization_deduplicates_and_exposes_structured_defaults(client):
     assert status.json().get("result_id") == first.json()["id"]
     assert second.json()["status"] == "existing"
     job = client.get(f"/api/v1/jobs/{first.json()['id']}", headers=headers).json()
-    assert job["title"] == "Python Engineer"
-    assert job["company"] == "Acme"
+    assert job["title"] == "Client Python Engineer"
+    assert job["company"] == "Client Acme"
+    assert job["location"] == "Client Remote"
+    assert job["salary"] == "$100,000-$120,000 CAD"
+    assert job["source"] == "Other"
+    assert job["posting_date"] == "2026-10-15"
+    assert job["requirements"] == ["Python"]
+    assert job["desirables"] == ["FastAPI"]
     assert "Python" in job["technical_stack"]
+    assert job["additionals"] == ["Health benefits"]
+
+
+def test_job_normalization_extracts_metadata_when_client_fields_are_absent(client):
+    token = client.post(
+        "/api/v1/auth/register", json={"email": "job-content-only@example.com", "password": "password123"}
+    ).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+    created = client.post(
+        "/api/v1/jobs/normalize",
+        headers=headers,
+        json={"url": "https://www.indeed.com/viewjob?jk=abc", "content": "Software Engineer posting"},
+    )
+
+    assert created.status_code == 202
+    job = client.get(f"/api/v1/jobs/{created.json()['id']}", headers=headers).json()
+    assert job["title"] == "Normalized Software Engineer"
+    assert job["company"] == "Normalized Employer"
+    assert job["location"] == "Toronto, Ontario"
+    assert job["source"] == "Indeed"
+    assert job["requirements"] == ["Python"]
+
+
+def test_job_normalization_requires_url_and_content(client):
+    token = client.post(
+        "/api/v1/auth/register", json={"email": "job-invalid-request@example.com", "password": "password123"}
+    ).json()["access_token"]
+    headers = {"Authorization": "Bearer " + token}
+
+    assert client.post("/api/v1/jobs/normalize", headers=headers, json={"url": "https://jobs.test"}).status_code == 422
 
 
 def test_job_provider_failure_marks_job_and_processing_failed(client, monkeypatch):

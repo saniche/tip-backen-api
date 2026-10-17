@@ -44,10 +44,17 @@ def structured_ai_provider(monkeypatch):
             )
         if operation == "job_normalizer":
             return schema_model(
+                title="Normalized Software Engineer",
+                company="Normalized Employer",
+                location="Toronto, Ontario",
+                salary="$100,000-$120,000 CAD",
+                source="Indeed" if "indeed." in user.lower() else "Other",
+                posting_date="2026-10-15",
                 key_responsibilities=["Build APIs"],
-                required={"qualifications": [], "skills": ["Python"]},
-                desirable={"qualifications": [], "skills": ["FastAPI"]},
+                requirements=["Python"],
+                desirables=["FastAPI"],
                 technical_stack=["Python", "FastAPI"],
+                additionals=["Health benefits"],
             )
         if operation == "job_matching":
             context = ast.literal_eval(user)

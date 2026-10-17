@@ -1,8 +1,22 @@
 import pytest
 
+from matching.matching_service import _job_data, create_match_report, get_match_report, list_match_reports
 from shared.llm_structured import StructuredProviderError
-from matching.matching_service import create_match_report, get_match_report, list_match_reports
 from shared.models import Job, JobMatchingResult, MatchReport, User, UserProfile
+
+
+def test_job_data_maps_flat_normalized_requirements_for_matching():
+    job = Job(
+        title="Python Engineer",
+        required=["Python", "FastAPI"],
+        desirable=["Kubernetes"],
+        technical_stack=["Python"],
+    )
+
+    job_data = _job_data(job)
+
+    assert job_data.required == {"qualifications": [], "skills": ["Python", "FastAPI"]}
+    assert job_data.desirable == {"qualifications": [], "skills": ["Kubernetes"]}
 
 
 @pytest.mark.asyncio

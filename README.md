@@ -79,6 +79,31 @@ OPENAI_TIMEOUT_SECONDS=60
 Standard automated tests mock OpenAI calls and do not require an API key. Provider failures result
 in a safe service error for matching or a failed processing job for profile, job, and CV workflows.
 
+### Job normalization
+
+`POST /api/v1/jobs/normalize` requires the posting URL and raw content. Optional client-provided
+`title`, `company`, and `location` values are retained instead of being replaced by the LLM:
+
+```http
+POST /api/v1/jobs/normalize
+Content-Type: application/json
+
+{
+  "url": "https://www.indeed.com/viewjob?jk=example",
+  "content": "Software Engineer ...",
+  "company": "Example Inc."
+}
+```
+
+The asynchronous normalizer extracts title, company, location, salary, source, posting date, key
+responsibilities, mandatory `requirements`, preferred `desirables`, technical stack, and
+`additionals`. Missing text metadata is an empty string and missing list values are empty lists.
+If the LLM cannot determine a posting date, the system stores the day before the UTC processing
+date as a fallback. Source is normalized to `LinkedIn`, `Indeed`, `JobBank`,
+`CompanyWebsite`, or `Other`; relative posting dates are resolved from the processing date only
+when the posting states a clear relative date. The completed normalized fields are available from
+`GET /api/v1/jobs/{job_id}`.
+
 Profile sessions accept an optional `output_language` when created. It defaults to English and is
 applied to every file in that session, even if the source resumes use another language:
 
