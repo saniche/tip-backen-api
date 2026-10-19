@@ -223,6 +223,9 @@ def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Ses
         "technical_stack": job.technical_stack,
         "additionals": job.additionals,
         "status": job.status,
+        "submitter_id": job.submitter_id,
+        "created_at": job.created_at,
+        "has_write_access": job.submitter_id == current_user.id or current_user.role == "admin"
     }
 
 
