@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -40,6 +42,37 @@ class NormalizedJobsResponse(BaseModel):
     total: int
     page: int = 1
     limit: int = 20
+
+
+class InterestJobHeader(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    id: str
+    title: str
+    company: str | None
+    location: str | None
+    url: str | None
+    source: str | None
+    posting_date: str | None = Field(serialization_alias="postingDate")
+
+
+class InterestItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    id: str
+    job_id: str = Field(serialization_alias="jobId")
+    created_at: datetime = Field(serialization_alias="createdAt")
+    job: InterestJobHeader
+
+
+class InterestsPage(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    items: list[InterestItem]
+    total: int
+    page: int = 1
+    limit: int = 20
+    total_pages: int = Field(serialization_alias="totalPages")
 
 
 class JobRequirements(BaseModel):

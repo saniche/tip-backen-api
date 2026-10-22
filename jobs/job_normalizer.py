@@ -1,14 +1,24 @@
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from sqlalchemy import DateTime, case, cast, desc, func, select
+from sqlalchemy import DateTime, case, cast, delete, desc, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from auth.security import get_current_user
+from jobs.interest_service import contains_pattern, ensure_interest, list_interests, remove_interest
 from jobs.job_service import normalize_job_content
 from shared.database import SessionLocal, get_db
 from shared.models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
-from shared.schemas import JobNormalizeOut, JobNormalizeRequest, NormalizedJobHeader, NormalizedJobsResponse
+from shared.schemas import (
+    InterestItem,
+    InterestJobHeader,
+    InterestsPage,
+    JobNormalizeOut,
+    JobNormalizeRequest,
+    NormalizedJobHeader,
+    NormalizedJobsResponse,
+)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 logger = logging.getLogger("tip-api")
@@ -45,6 +55,7 @@ async def _run_job_normalization(
         job.status = "completed"
         processing_job.status = ProcessingJobStatus.DONE
         processing_job.result_id = job.id
+        ensure_interest(db, processing_job.user_id, job.id)
         db.commit()
     except Exception:
         logger.exception("Job normalization failed", extra={"processing_job_id": processing_job_id})
@@ -70,6 +81,9 @@ def normalize_job(
 ):
     existing = db.execute(select(Job).where(Job.url == payload.url)).scalar_one_or_none()
     if existing:
+        if existing.status == "completed":
+            ensure_interest(db, current_user.id, existing.id)
+            db.commit()
         return {"id": existing.id, "status": "existing"}
     job = Job(
         url=payload.url,
@@ -138,11 +152,6 @@ def list_jobs(
     ]
 
 
-def _contains_pattern(value: str) -> str:
-    escaped = value.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    return f"%{escaped}%"
-
-
 def _posting_date_order_expression(db: Session):
     dialect_name = db.get_bind().dialect.name
     if dialect_name == "sqlite":
@@ -174,7 +183,7 @@ def list_normalized_jobs(
         (location, Job.location),
     ):
         if value and value.strip():
-            filters.append(column.ilike(_contains_pattern(value), escape="\\"))
+            filters.append(column.ilike(contains_pattern(value), escape="\\"))
 
     total = db.scalar(select(func.count(Job.id)).where(*filters)) or 0
     posting_date_order = _posting_date_order_expression(db)
@@ -200,6 +209,39 @@ def list_normalized_jobs(
         for row in rows
     ]
     return NormalizedJobsResponse(items=items, total=total, page=page, limit=limit)
+
+
+@router.get("/interests", response_model=InterestsPage)
+def list_my_interests(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    title: str | None = None,
+    company: str | None = None,
+    location: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    rows, total = list_interests(
+        db, current_user.id, title=title, company=company, location=location, page=page, limit=limit
+    )
+    items = [
+        InterestItem(
+            id=interest.id,
+            job_id=interest.job_id,
+            created_at=interest.created_at,
+            job=InterestJobHeader(
+                id=job.id,
+                title=job.title,
+                company=job.company,
+                location=job.location,
+                url=job.url,
+                source=job.source,
+                posting_date=job.posting_date,
+            ),
+        )
+        for interest, job in rows
+    ]
+    return InterestsPage(items=items, total=total, page=page, limit=limit, total_pages=-(-total // limit))
 
 
 @router.get("/{job_id}")
@@ -231,18 +273,25 @@ def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Ses
 
 @router.post("/{job_id}/interest", status_code=201)
 def interest(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    if not db.get(Job, job_id):
+    job = db.get(Job, job_id)
+    if not job:
         raise HTTPException(404, "Job not found")
-    existing = db.execute(
-        select(JobInterest).where(JobInterest.user_id == current_user.id, JobInterest.job_id == job_id)
-    ).scalar_one_or_none()
-    if existing:
-        return {"id": existing.id, "status": "existing"}
-    item = JobInterest(user_id=current_user.id, job_id=job_id)
-    db.add(item)
+    if job.status != "completed":
+        raise HTTPException(409, "Job normalization is not completed")
+    try:
+        item, created = ensure_interest(db, current_user.id, job_id)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        item, created = ensure_interest(db, current_user.id, job_id)
+    return {"id": item.id, "status": "created" if created else "existing"}
+
+
+@router.delete("/{job_id}/interest", status_code=204)
+def remove_job_interest(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not remove_interest(db, current_user.id, job_id):
+        raise HTTPException(404, "Interest not found")
     db.commit()
-    db.refresh(item)
-    return {"id": item.id, "status": "created"}
 
 
 @router.delete("/{job_id}", status_code=204)
@@ -252,5 +301,6 @@ def delete_job(job_id: str, current_user: User = Depends(get_current_user), db: 
         raise HTTPException(404, "Job not found")
     if job.submitter_id != current_user.id and current_user.role != "admin":
         raise HTTPException(403, "Forbidden")
+    db.execute(delete(JobInterest).where(JobInterest.job_id == job_id))
     db.delete(job)
     db.commit()

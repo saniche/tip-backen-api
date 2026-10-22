@@ -14,7 +14,7 @@ import enum
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.database import Base
@@ -116,7 +116,10 @@ class Job(Base):
 
 class JobInterest(Base):
     __tablename__ = "job_interests"
-    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_job_interest_user_job"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "job_id", name="uq_job_interest_user_job"),
+        Index("ix_job_interests_user_created", "user_id", "created_at", "id"),
+    )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)

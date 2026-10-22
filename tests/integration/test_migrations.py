@@ -18,6 +18,7 @@ def test_migration_chain_is_complete():
     assert "004_tailored_cvs.py" in names
     assert "006_profile_session_output_language.py" in names
     assert "007_job_additionals.py" in names
+    assert "008_interest_listing_index.py" in names
     migration_path = Path("alembic/versions/007_job_additionals.py")
     migration_tree = ast.parse(migration_path.read_text(encoding="utf-8"))
     revision_assignment = next(
@@ -55,6 +56,43 @@ def test_migrations_upgrade_and_create_jobs_constraints():
         assert "ix_job_interests_user_job" in interest_indexes
         assert session_columns["output_language"] == "'English'"
         assert job_columns["additionals"] == "'[]'"
+    finally:
+        try:
+            database_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass
+
+
+def test_interest_listing_index_migration_upgrades_and_downgrades():
+    migration_tree = ast.parse(Path("alembic/versions/008_interest_listing_index.py").read_text(encoding="utf-8"))
+    revision = ast.literal_eval(
+        next(
+            node.value
+            for node in migration_tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "revision" for target in node.targets)
+        )
+    )
+    assert len(revision) <= 32
+    database_path = Path(tempfile.mktemp(suffix=".db"))
+    environment = os.environ.copy()
+    environment["DATABASE_URL"] = f"sqlite+pysqlite:///{database_path}"
+    alembic = str(Path(sys.executable).with_name("alembic.exe"))
+
+    def run(*args):
+        result = subprocess.run([alembic, *args], check=False, capture_output=True, text=True, env=environment)
+        assert result.returncode == 0, result.stderr
+
+    def interest_indexes():
+        with sqlite3.connect(database_path) as connection:
+            return {row[1] for row in connection.execute("PRAGMA index_list('job_interests')")}
+
+    try:
+        run("upgrade", "head")
+        assert "ix_job_interests_user_created" in interest_indexes()
+        run("downgrade", "-1")
+        assert "ix_job_interests_user_created" not in interest_indexes()
+        assert "ix_job_interests_user_job" in interest_indexes()
     finally:
         try:
             database_path.unlink(missing_ok=True)

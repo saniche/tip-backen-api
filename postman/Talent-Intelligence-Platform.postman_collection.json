@@ -809,6 +809,1304 @@
       ]
     },
     {
+      "name": "Interests",
+      "item": [
+        {
+          "name": "List interests - success (created by normalization)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('returns the first page of the caller interests', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body).to.have.all.keys('items', 'total', 'page', 'limit', 'totalPages');",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(20);",
+                  "  pm.expect(body.items).to.be.an('array').and.have.length.at.most(20);",
+                  "  pm.expect(body.total).to.be.at.least(1);",
+                  "  pm.expect(body.totalPages).to.eql(Math.ceil(body.total / body.limit));",
+                  "});",
+                  "pm.test('contains the normalized setup job as an interest with its job header', () => {",
+                  "  const item = body.items.find(i => i.jobId === pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(item, 'interest created automatically by normalization').to.exist;",
+                  "  pm.expect(item).to.have.all.keys('id', 'jobId', 'createdAt', 'job');",
+                  "  pm.expect(item.job).to.have.all.keys('id', 'title', 'company', 'location', 'url', 'source', 'postingDate');",
+                  "  pm.expect(item.job.id).to.eql(item.jobId);",
+                  "  pm.expect(item.job.title).to.be.a('string');",
+                  "  pm.collectionVariables.set('interest_id', item.id);",
+                  "  pm.collectionVariables.set('interest_job_title', item.job.title || '');",
+                  "  pm.collectionVariables.set('interest_job_company', item.job.company || '');",
+                  "  pm.collectionVariables.set('interest_job_location', item.job.location || '');",
+                  "  pm.collectionVariables.set('interest_job_url', item.job.url || '');",
+                  "});",
+                  "pm.test('orders interests newest first', () => {",
+                  "  const times = body.items.map(i => Date.parse(i.createdAt));",
+                  "  pm.expect(times).to.eql([...times].sort((a, b) => b - a));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - filters success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const title = pm.collectionVariables.get('interest_job_title');",
+                  "const company = pm.collectionVariables.get('interest_job_company');",
+                  "const location = pm.collectionVariables.get('interest_job_location');",
+                  "// Upper-case partial title and lower-case company prove case-insensitive partial matching.",
+                  "if (title) pm.request.url.query.add({ key: 'title', value: title.slice(0, 5).toUpperCase() });",
+                  "if (company) pm.request.url.query.add({ key: 'company', value: company.toLowerCase() });",
+                  "if (location) pm.request.url.query.add({ key: 'location', value: location });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const title = pm.collectionVariables.get('interest_job_title');",
+                  "const company = pm.collectionVariables.get('interest_job_company');",
+                  "const location = pm.collectionVariables.get('interest_job_location');",
+                  "pm.test('returns only interests whose job matches every supplied filter', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.items.map(i => i.jobId)).to.include(pm.collectionVariables.get('job_id'));",
+                  "  body.items.forEach(item => {",
+                  "    if (title) pm.expect((item.job.title || '').toLowerCase()).to.include(title.slice(0, 5).toLowerCase());",
+                  "    if (company) pm.expect((item.job.company || '').toLowerCase()).to.include(company.toLowerCase());",
+                  "    if (location) pm.expect((item.job.location || '').toLowerCase()).to.include(location.toLowerCase());",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - no match success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.url.query.add({ key: 'company', value: `no-such-company-${Date.now()}` });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns an empty page with zero totals', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items).to.eql([]);",
+                  "  pm.expect(body.total).to.eql(0);",
+                  "  pm.expect(body.totalPages).to.eql(0);",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - custom page size success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('honors the requested page and page size and reports metadata', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(1);",
+                  "  pm.expect(body.items).to.have.length.at.most(1);",
+                  "  pm.expect(body.total).to.be.at.least(1);",
+                  "  pm.expect(body.totalPages).to.eql(Math.ceil(body.total / 1));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests?page=1&limit=1",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - page beyond last success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns an empty page while keeping the matching total', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items).to.eql([]);",
+                  "  pm.expect(body.page).to.eql(9999);",
+                  "  pm.expect(body.total).to.be.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests?page=9999&limit=20",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "9999"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - page size above maximum failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects a page size above 100', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests?limit=101",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "101"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - invalid page failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects a page number below 1', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests?page=0",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - unauthenticated failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('requires a bearer token', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add interest - already exists success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('reports the interest created by normalization instead of duplicating it', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('existing');",
+                  "  pm.expect(body.id).to.eql(pm.collectionVariables.get('interest_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove interest - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('removes the caller interest', () => {",
+                  "  pm.response.to.have.status(204);",
+                  "  pm.expect(pm.response.text()).to.eql('');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - removed interest absent success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('no longer lists the removed interest', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items.map(i => i.jobId)).to.not.include(pm.collectionVariables.get('job_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get job - still exists after interest removal success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('keeps the normalized job when its interest is removed', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('job_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove interest - missing failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects removing an interest that does not exist', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add interest - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('adds a normalized job to the caller interests', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('created');",
+                  "  pm.expect(body.id).to.be.a('string').and.not.empty;",
+                  "  pm.collectionVariables.set('interest_id', body.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add interest - duplicate success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('does not create a second interest for the same user and job', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('existing');",
+                  "  pm.expect(body.id).to.eql(pm.collectionVariables.get('interest_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add interest - unknown job failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects an interest in a job that does not exist', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{unknown_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{unknown_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add interest - unauthenticated failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('requires a bearer token', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove interest - unauthenticated failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('requires a bearer token', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove interest - before resubmission success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('removes the interest so resubmission can recreate it', () => {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resubmit job - recreates interest success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const content = pm.collectionVariables.get('jobPostingContent') || (pm.iterationData && pm.iterationData.get('content')) || 'Resubmitted job posting';",
+                  "pm.variables.set('payload', JSON.stringify({ url: pm.collectionVariables.get('interest_job_url'), content }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('reuses the existing normalized job instead of creating a new one', () => {",
+                  "  pm.response.to.have.status(202);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('existing');",
+                  "  pm.expect(body.id).to.eql(pm.collectionVariables.get('job_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{payload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/jobs/normalize",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "normalize"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resubmit job again - no duplicate success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const content = pm.collectionVariables.get('jobPostingContent') || (pm.iterationData && pm.iterationData.get('content')) || 'Resubmitted job posting';",
+                  "pm.variables.set('payload', JSON.stringify({ url: pm.collectionVariables.get('interest_job_url'), content }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('accepts a repeated submission as the existing job', () => {",
+                  "  pm.response.to.have.status(202);",
+                  "  pm.expect(pm.response.json().status).to.eql('existing');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{{payload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/jobs/normalize",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "normalize"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - exactly one after resubmissions success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('has exactly one interest for the job after repeated submissions', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const matches = pm.response.json().items.filter(i => i.jobId === pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(matches).to.have.length(1);",
+                  "  pm.collectionVariables.set('interest_id', matches[0].id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register second user - success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const userName = pm.variables.replaceIn('{{$randomUserName}}');",
+                  "const domain = pm.variables.replaceIn('{{$randomDomainName}}');",
+                  "pm.collectionVariables.set('other_email', `${userName}-other-${Date.now()}-${Math.floor(Math.random() * 1e6)}@${domain}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('creates a second user to verify interest isolation', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "  pm.collectionVariables.set('other_access_token', body.access_token);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{other_email}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_url}}/auth/register",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - second user sees none success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('does not expose another user interests', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.total).to.eql(0);",
+                  "  pm.expect(body.items).to.eql([]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove interest - other user's interest failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cannot remove an interest owned by another user', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - owner interest untouched success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('keeps the owner interest after another user attempted removal', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const item = pm.response.json().items.find(i => i.jobId === pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(item).to.exist;",
+                  "  pm.expect(item.id).to.eql(pm.collectionVariables.get('interest_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add interest - second user success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('creates a separate interest for the second user on the shared job', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.status).to.eql('created');",
+                  "  pm.expect(body.id).to.not.eql(pm.collectionVariables.get('interest_id'));",
+                  "  pm.collectionVariables.set('other_interest_id', body.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - second user own interest success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('lists only the second user interest', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.total).to.eql(1);",
+                  "  pm.expect(body.items[0].id).to.eql(pm.collectionVariables.get('other_interest_id'));",
+                  "  pm.expect(body.items[0].jobId).to.eql(pm.collectionVariables.get('job_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove interest - second user success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('removes only the second user interest', () => {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - owner unaffected by second user success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('keeps the owner interest after the second user removed theirs', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const item = pm.response.json().items.find(i => i.jobId === pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(item).to.exist;",
+                  "  pm.expect(item.id).to.eql(pm.collectionVariables.get('interest_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Processing Jobs",
       "item": [
         {
@@ -1619,6 +2917,81 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Delete interest - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('removes the interest without deleting the job', () => {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete interest - missing failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects deleting an already removed interest', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}",
+                "interest"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     }
@@ -1707,6 +3080,38 @@
     },
     {
       "key": "fixture_root",
+      "value": ""
+    },
+    {
+      "key": "interest_id",
+      "value": ""
+    },
+    {
+      "key": "interest_job_title",
+      "value": ""
+    },
+    {
+      "key": "interest_job_company",
+      "value": ""
+    },
+    {
+      "key": "interest_job_location",
+      "value": ""
+    },
+    {
+      "key": "interest_job_url",
+      "value": ""
+    },
+    {
+      "key": "other_email",
+      "value": ""
+    },
+    {
+      "key": "other_access_token",
+      "value": ""
+    },
+    {
+      "key": "other_interest_id",
       "value": ""
     }
   ]

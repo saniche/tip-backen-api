@@ -57,3 +57,23 @@ authentication, profile, processing job, matching, and CV tailoring routes. The 
 folder is a prerequisite that supplies a real job for successful matching tests. Matching requests
 return `202 Accepted`; the collection polls the matching processing job before requesting report
 results.
+
+## Interests folder
+
+The `Interests` folder runs after job normalization completes and covers interest management for the
+setup job (see `specs/004-interest-management/contracts/api-v1.md`):
+
+- Normalization automatically creates the submitter's interest, which `GET /jobs/interests` returns
+  with the job header (`id`, `title`, `company`, `location`, `url`, `source`, `postingDate`).
+- Listing filters (case-insensitive partial `title`, `company`, `location`), page size, a page beyond
+  the last, the no-match empty page, and `422` for `limit=101` and `page=0`.
+- Add (`201` with `created` or `existing`), duplicate add, unknown job (`404`), and removal (`204`,
+  the job still exists, then `404` when already removed).
+- Resubmitting the same job URL recreates a removed interest and never duplicates it.
+- A second registered user sees none of the first user's interests, cannot remove them (`404`), and
+  gets a separate interest on the same job.
+- Unauthenticated list, add, and remove return `401`.
+
+The `Cleanup` folder also removes the setup job's interest. A `409` for adding a job whose
+normalization has not completed is covered by the automated pytest suite, not Postman, because the
+collection cannot create a job in that state.
