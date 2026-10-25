@@ -77,3 +77,31 @@ setup job (see `specs/004-interest-management/contracts/api-v1.md`):
 The `Cleanup` folder also removes the setup job's interest. A `409` for adding a job whose
 normalization has not completed is covered by the automated pytest suite, not Postman, because the
 collection cannot create a job in that state.
+
+## Application Journal folder
+
+The `Application Journal` folder runs after `Interests` and covers job application tracking for the setup
+job (see `specs/005-application-journal/contracts/api-v1.md`):
+
+- **Creation & Atomic Interest Release**: `POST /applications` creates a journal entry for the normalized
+  job initialized to `NotStarted` with initial history and automatically releases any matching interest.
+  A follow-up check on `GET /jobs/interests` verifies the interest is no longer present.
+- **Validation & Conflict Handling**: Duplicate creation returns `409 Conflict`; unknown job returns `404`;
+  unauthenticated requests return `401`.
+- **Listing, Filtering, & Pagination**: `GET /applications` tests default ordering (newest first),
+  pagination metadata (`items`, `total`, `page`, `limit`, `totalPages`), case-insensitive partial filters
+  (`title`, `company`, `location`), empty results on non-matching query, custom page size, page beyond last,
+  and `422` validation for `limit > 100` and `page < 1`.
+- **Retrieval & Partial Updates**: `GET /applications/{id}` retrieves the owned entry with full job header
+  projection and history; `PATCH /applications/{id}` updates editable fields (`recruiterInfo`, `followUpDate`,
+  `workAuthorizationDiscussed`, `notes`) while preserving history; empty update body or attempt to pass
+  protected fields (`status`) returns `422`.
+- **Status Transitions & History**: `PATCH /applications/{id}/status` appends an immutable history item
+  and updates current status; repeating the same status is an idempotent no-op (no duplicate history appended);
+  unsupported status returns `422`.
+- **User Isolation**: A second registered user sees zero entries in their list, receives `404` when
+  attempting to view, update fields, update status, or delete the first user's entry, and can independently
+  create and delete their own journal entry for the same shared job.
+- **Cleanup**: In the `Cleanup` folder, `DELETE /applications/{id}` verifies removal with `204`, missing
+  entry removal with `404`, and confirms the underlying normalized job remains retrievable.
+

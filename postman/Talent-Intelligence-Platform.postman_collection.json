@@ -2107,6 +2107,1417 @@
       ]
     },
     {
+      "name": "Application Journal",
+      "item": [
+        {
+          "name": "Create application - success (releases interest)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('creates an application journal entry with status 201', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(body).to.have.all.keys('id', 'jobId', 'recruiterInfo', 'contactDate', 'followUpDate', 'workAuthorizationDiscussed', 'notes', 'status', 'history', 'createdAt', 'updatedAt', 'job');",
+                  "  pm.expect(body.id).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.jobId).to.eql(pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(body.status).to.eql('NotStarted');",
+                  "  pm.expect(body.contactDate).to.eql('2026-10-22');",
+                  "  pm.expect(body.followUpDate).to.eql('2026-10-29');",
+                  "  pm.expect(body.workAuthorizationDiscussed).to.be.false;",
+                  "  pm.expect(body.notes).to.eql('Applied via company portal');",
+                  "  pm.expect(body.recruiterInfo).to.eql({",
+                  "    name: 'Jane Recruiter',",
+                  "    email: 'jane.recruiter@example.com',",
+                  "    phone: '+1-555-0199'",
+                  "  });",
+                  "  pm.expect(body.history).to.be.an('array').with.lengthOf(1);",
+                  "  pm.expect(body.history[0].status).to.eql('NotStarted');",
+                  "  pm.expect(body.history[0].note).to.be.null;",
+                  "  pm.expect(body.job.id).to.eql(pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(body.job).to.have.all.keys('id', 'title', 'company', 'location', 'url', 'source', 'postingDate');",
+                  "  pm.collectionVariables.set('application_id', body.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{job_id}}\",\n  \"recruiterInfo\": {\n    \"name\": \"Jane Recruiter\",\n    \"email\": \"jane.recruiter@example.com\",\n    \"phone\": \"+1-555-0199\"\n  },\n  \"contactDate\": \"2026-10-22\",\n  \"followUpDate\": \"2026-10-29\",\n  \"workAuthorizationDiscussed\": false,\n  \"notes\": \"Applied via company portal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List interests - released after application creation success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('verifies interest was removed atomically upon journal creation', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  const matches = body.items.filter(i => i.jobId === pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(matches, 'interest should have been released').to.have.length(0);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/interests",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "interests"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create application - duplicate failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects creating duplicate application for same job and user', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('CONFLICT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{job_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create application - unknown job failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects application for non-existent job with 404', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{unknown_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create application - unauthenticated failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('requires a bearer token', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{job_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('returns caller applications with pagination metadata', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body).to.have.all.keys('items', 'total', 'page', 'limit', 'totalPages');",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(20);",
+                  "  pm.expect(body.items).to.be.an('array').and.have.length.at.least(1);",
+                  "  pm.expect(body.total).to.be.at.least(1);",
+                  "  pm.expect(body.totalPages).to.eql(Math.ceil(body.total / body.limit));",
+                  "});",
+                  "pm.test('contains created application with full job header and history', () => {",
+                  "  const item = body.items.find(a => a.id === pm.collectionVariables.get('application_id'));",
+                  "  pm.expect(item).to.exist;",
+                  "  pm.expect(item.jobId).to.eql(pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(item.job).to.have.all.keys('id', 'title', 'company', 'location', 'url', 'source', 'postingDate');",
+                  "  pm.expect(item.history).to.be.an('array').with.length.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - filters success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const title = pm.collectionVariables.get('interest_job_title');",
+                  "const company = pm.collectionVariables.get('interest_job_company');",
+                  "const location = pm.collectionVariables.get('interest_job_location');",
+                  "if (title) pm.request.url.query.add({ key: 'title', value: title.slice(0, 5).toUpperCase() });",
+                  "if (company) pm.request.url.query.add({ key: 'company', value: company.toLowerCase() });",
+                  "if (location) pm.request.url.query.add({ key: 'location', value: location });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "const title = pm.collectionVariables.get('interest_job_title');",
+                  "const company = pm.collectionVariables.get('interest_job_company');",
+                  "const location = pm.collectionVariables.get('interest_job_location');",
+                  "pm.test('filters applications by matching job properties', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.items.map(a => a.id)).to.include(pm.collectionVariables.get('application_id'));",
+                  "  body.items.forEach(item => {",
+                  "    if (title) pm.expect((item.job.title || '').toLowerCase()).to.include(title.slice(0, 5).toLowerCase());",
+                  "    if (company) pm.expect((item.job.company || '').toLowerCase()).to.include(company.toLowerCase());",
+                  "    if (location) pm.expect((item.job.location || '').toLowerCase()).to.include(location.toLowerCase());",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - no match success",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.request.url.query.add({ key: 'company', value: `no-such-company-${Date.now()}` });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns empty items and 0 totals for no-match filter', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items).to.eql([]);",
+                  "  pm.expect(body.total).to.eql(0);",
+                  "  pm.expect(body.totalPages).to.eql(0);",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - custom page size success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('honors page and limit parameters with accurate pagination metadata', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.page).to.eql(1);",
+                  "  pm.expect(body.limit).to.eql(1);",
+                  "  pm.expect(body.items).to.have.length.at.most(1);",
+                  "  pm.expect(body.total).to.be.at.least(1);",
+                  "  pm.expect(body.totalPages).to.eql(Math.ceil(body.total / 1));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications?page=1&limit=1",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - page beyond last success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns empty items array when requested page exceeds totalPages', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.items).to.eql([]);",
+                  "  pm.expect(body.page).to.eql(9999);",
+                  "  pm.expect(body.total).to.be.at.least(1);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications?page=9999&limit=20",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "9999"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - page size above maximum failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects limit > 100 with 422', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications?limit=101",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "101"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - invalid page failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects page < 1 with 422', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications?page=0",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - unauthenticated failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('requires a bearer token', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get application - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('retrieves an owned application journal entry', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.id).to.eql(pm.collectionVariables.get('application_id'));",
+                  "  pm.expect(body.jobId).to.eql(pm.collectionVariables.get('job_id'));",
+                  "  pm.expect(body.status).to.eql('NotStarted');",
+                  "  pm.expect(body.job.id).to.eql(pm.collectionVariables.get('job_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get application - unknown id failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns 404 for unknown application id', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{unknown_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{unknown_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application fields - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('updates editable fields and leaves status history unchanged', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.recruiterInfo.name).to.eql('Jane Senior Recruiter');",
+                  "  pm.expect(body.recruiterInfo.email).to.eql('jane.sr@example.com');",
+                  "  pm.expect(body.followUpDate).to.eql('2026-11-05');",
+                  "  pm.expect(body.workAuthorizationDiscussed).to.be.true;",
+                  "  pm.expect(body.notes).to.eql('Discussed visa sponsorship; follow-up scheduled');",
+                  "  pm.expect(body.status).to.eql('NotStarted');",
+                  "  pm.expect(body.history).to.be.an('array').with.lengthOf(1);",
+                  "  pm.expect(body.history[0].status).to.eql('NotStarted');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recruiterInfo\": {\n    \"name\": \"Jane Senior Recruiter\",\n    \"email\": \"jane.sr@example.com\",\n    \"phone\": \"+1-555-0999\"\n  },\n  \"followUpDate\": \"2026-11-05\",\n  \"workAuthorizationDiscussed\": true,\n  \"notes\": \"Discussed visa sponsorship; follow-up scheduled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application fields - empty body failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects empty update payload with 422', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application fields - forbidden status field failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects updating status via fields endpoint with 422', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Applied\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application status - success (appends history)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('updates current status and appends status history item', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.status).to.eql('Applied');",
+                  "  pm.expect(body.history).to.be.an('array').with.lengthOf(2);",
+                  "  pm.expect(body.history[0].status).to.eql('NotStarted');",
+                  "  pm.expect(body.history[1].status).to.eql('Applied');",
+                  "  pm.expect(body.history[1].note).to.eql('Submitted application via referral');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}/status",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Applied\",\n  \"note\": \"Submitted application via referral\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application status - unchanged no-op success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('does not append redundant history entry when status unchanged', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.status).to.eql('Applied');",
+                  "  pm.expect(body.history).to.be.an('array').with.lengthOf(2);",
+                  "  pm.expect(body.history[1].note).to.eql('Submitted application via referral');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}/status",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Applied\",\n  \"note\": \"Repeated submission attempt\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application status - second transition success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('transitions to Interview and appends 3rd history item in chronological order', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(body.status).to.eql('Interview');",
+                  "  pm.expect(body.history).to.be.an('array').with.lengthOf(3);",
+                  "  pm.expect(body.history.map(h => h.status)).to.eql(['NotStarted', 'Applied', 'Interview']);",
+                  "  pm.expect(body.history[2].note).to.eql('First round technical interview scheduled');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}/status",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Interview\",\n  \"note\": \"First round technical interview scheduled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application status - invalid status failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects unsupported status with 422', () => {",
+                  "  pm.response.to.have.status(422);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}/status",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"InvalidStatusValue\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List applications - second user sees none success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('does not expose another user applications', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.total).to.eql(0);",
+                  "  pm.expect(body.items).to.eql([]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get application - other user's application failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cannot view another user application journal entry (returns 404)', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application fields - other user's application failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cannot update another user application fields (returns 404)', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Attempted cross-user edit\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update application status - other user's application failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cannot update another user application status (returns 404)', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}/status",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"Closed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create application - second user on same job success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test('allows second user to create their own journal entry for the same shared job', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(body.id).to.not.eql(pm.collectionVariables.get('application_id'));",
+                  "  pm.expect(body.jobId).to.eql(pm.collectionVariables.get('job_id'));",
+                  "  pm.collectionVariables.set('other_application_id', body.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobId\": \"{{job_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete application - other user's application failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cannot delete another user application entry (returns 404)', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete application - second user own entry success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('deletes the second user own application entry', () => {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{other_access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{other_application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{other_application_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get application - owner entry unaffected by second user deletion success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('owner application is intact after second user deleted their own entry', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('application_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Processing Jobs",
       "item": [
         {
@@ -2992,6 +4403,116 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Delete application - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('deletes the application journal entry without deleting the job', () => {",
+                  "  pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete application - missing failure",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('rejects deleting an already deleted application', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('RESOURCE_NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/applications/{{application_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "applications",
+                "{{application_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get job - still exists after application deletion success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('keeps the normalized job when its application entry is deleted', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('job_id'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/jobs/{{job_id}}",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     }
@@ -3112,6 +4633,14 @@
     },
     {
       "key": "other_interest_id",
+      "value": ""
+    },
+    {
+      "key": "application_id",
+      "value": ""
+    },
+    {
+      "key": "other_application_id",
       "value": ""
     }
   ]

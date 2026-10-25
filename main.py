@@ -1,21 +1,22 @@
 import logging
+import profile.profile_builder_router as profile_builder_router
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+import applications.router as applications_router
 import auth.router as auth_router
-import shared.config as config  # noqa: F401
 import cv.cv_tailoring_router as cv_tailoring_router
 import cv.download_router as download_router
-import matching.job_matching_router as job_matching_router
 import jobs.job_normalizer as job_normalizer
+import matching.job_matching_router as job_matching_router
+import shared.config as config  # noqa: F401
 import shared.processing_jobs_router as processing_jobs_router
-import profile.profile_builder_router as profile_builder_router
 from shared.database import Base, engine
 from shared.errors import AppException, translate_exception
-from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Job Search Aggregator API")
 
@@ -115,6 +116,7 @@ def ready():
 
 
 app.include_router(auth_router.router, prefix="/api/v1")
+app.include_router(applications_router.router, prefix="/api/v1")
 app.include_router(job_normalizer.router, prefix="/api/v1")
 app.include_router(job_matching_router.router, prefix="/api/v1")
 app.include_router(profile_builder_router.router, prefix="/api/v1")

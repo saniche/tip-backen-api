@@ -12,9 +12,9 @@ Design notes (see conversation for full rationale):
 
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from shared.database import Base
@@ -125,6 +125,70 @@ class JobInterest(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
+class ApplicationStatus(str, enum.Enum):
+    NOT_STARTED = "NotStarted"
+    REGISTERED = "Registered"
+    APPLIED = "Applied"
+    CONTACTED = "Contacted"
+    SCREENING = "Screening"
+    INTERVIEW = "Interview"
+    ON_HOLD = "OnHold"
+    CLOSED = "Closed"
+    REJECTED = "Rejected"
+    OFFERED = "Offered"
+    ACCEPTED = "Accepted"
+    
+
+
+def _application_status_type() -> Enum:
+    return Enum(
+        ApplicationStatus,
+        name="applicationstatus",
+        native_enum=False,
+        create_constraint=True,
+        length=20,
+        values_callable=lambda statuses: [status.value for status in statuses],
+    )
+
+
+class ApplicationJournal(Base):
+    __tablename__ = "application_journals"
+    __table_args__ = (
+        UniqueConstraint("user_id", "job_id", name="uq_application_journal_user_job"),
+        Index("ix_application_journals_user_created", "user_id", "created_at", "id"),
+    )
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
+    job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), nullable=False)
+    recruiter_info: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    contact_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    work_authorization_discussed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[ApplicationStatus] = mapped_column(
+        _application_status_type(),
+        default=ApplicationStatus.NOT_STARTED,
+        server_default=ApplicationStatus.NOT_STARTED.value,
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class ApplicationStatusHistory(Base):
+    __tablename__ = "application_status_history"
+    __table_args__ = (Index("ix_application_status_history_entry_date", "application_id", "date", "id"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    application_id: Mapped[str] = mapped_column(
+        String, ForeignKey("application_journals.id", ondelete="CASCADE"), nullable=False
+    )
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[ApplicationStatus] = mapped_column(_application_status_type(), nullable=False)
 
 
 class UserProfile(Base):

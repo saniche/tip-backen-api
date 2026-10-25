@@ -1,6 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from shared.models import ApplicationStatus
 
 
 class ErrorDetails(BaseModel):
@@ -72,6 +74,95 @@ class InterestsPage(BaseModel):
     total: int
     page: int = 1
     limit: int = 20
+    total_pages: int = Field(serialization_alias="totalPages")
+
+
+class RecruiterInfo(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+
+
+class ApplicationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    job_id: str = Field(validation_alias="jobId", serialization_alias="jobId")
+    recruiter_info: RecruiterInfo | None = Field(default=None, validation_alias="recruiterInfo")
+    contact_date: date | None = Field(default=None, validation_alias="contactDate")
+    follow_up_date: date | None = Field(default=None, validation_alias="followUpDate")
+    work_authorization_discussed: bool = Field(default=False, validation_alias="workAuthorizationDiscussed")
+    notes: str | None = None
+
+
+class ApplicationFieldsUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    recruiter_info: RecruiterInfo | None = Field(default=None, validation_alias="recruiterInfo")
+    contact_date: date | None = Field(default=None, validation_alias="contactDate")
+    follow_up_date: date | None = Field(default=None, validation_alias="followUpDate")
+    work_authorization_discussed: bool = Field(default=False, validation_alias="workAuthorizationDiscussed")
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def require_at_least_one_field(self):
+        if not self.model_fields_set:
+            raise ValueError("At least one editable field must be provided")
+        return self
+
+
+class ApplicationStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: ApplicationStatus
+    note: str | None = None
+
+
+class ApplicationStatusHistoryOut(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    date: datetime
+    note: str | None
+    status: ApplicationStatus
+
+
+class ApplicationJobHeader(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    id: str
+    title: str
+    company: str | None
+    location: str | None
+    url: str | None
+    source: str | None
+    posting_date: str | None = Field(serialization_alias="postingDate")
+
+
+class ApplicationJournalItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    id: str
+    job_id: str = Field(serialization_alias="jobId")
+    recruiter_info: RecruiterInfo | None = Field(serialization_alias="recruiterInfo")
+    contact_date: date | None = Field(serialization_alias="contactDate")
+    follow_up_date: date | None = Field(serialization_alias="followUpDate")
+    work_authorization_discussed: bool = Field(serialization_alias="workAuthorizationDiscussed")
+    notes: str | None
+    status: ApplicationStatus
+    history: list[ApplicationStatusHistoryOut]
+    created_at: datetime = Field(serialization_alias="createdAt")
+    updated_at: datetime = Field(serialization_alias="updatedAt")
+    job: ApplicationJobHeader
+
+
+class ApplicationJournalPage(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    items: list[ApplicationJournalItem]
+    total: int
+    page: int
+    limit: int
     total_pages: int = Field(serialization_alias="totalPages")
 
 

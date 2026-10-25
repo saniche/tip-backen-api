@@ -9,7 +9,7 @@ from auth.security import get_current_user
 from jobs.interest_service import contains_pattern, ensure_interest, list_interests, remove_interest
 from jobs.job_service import normalize_job_content
 from shared.database import SessionLocal, get_db
-from shared.models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
+from shared.models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User, ApplicationJournal
 from shared.schemas import (
     InterestItem,
     InterestJobHeader,
@@ -18,6 +18,7 @@ from shared.schemas import (
     JobNormalizeRequest,
     NormalizedJobHeader,
     NormalizedJobsResponse,
+    
 )
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -247,6 +248,8 @@ def list_my_interests(
 @router.get("/{job_id}")
 def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.get(Job, job_id)
+    interested = db.query(JobInterest).filter_by(user_id=current_user.id, job_id=job_id).first() is not None
+    is_tracked = db.query(ApplicationJournal).filter_by(user_id=current_user.id, job_id=job_id).first() is not None
     if not job:
         raise HTTPException(404, "Job not found")
     return {
@@ -267,7 +270,9 @@ def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Ses
         "status": job.status,
         "submitter_id": job.submitter_id,
         "created_at": job.created_at,
-        "has_write_access": job.submitter_id == current_user.id or current_user.role == "admin"
+        "has_write_access": job.submitter_id == current_user.id or current_user.role == "admin",
+        "is_interested": interested,
+        "is_tracked": is_tracked
     }
 
 
