@@ -6,8 +6,8 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth.security import get_current_user
-from shared.database import SessionLocal, get_db
 from matching.matching_service import create_pending_match_report, process_match_report
+from shared.database import SessionLocal, get_db
 from shared.models import JobMatchingResult, MatchReport, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
 from shared.schemas import JobMatchingRequest, ProcessingJobOut
 
@@ -106,7 +106,10 @@ def get_match_report(
         db.execute(
             select(JobMatchingResult)
             .where(JobMatchingResult.report_id == report.id)
-            .order_by(desc(JobMatchingResult.score))
+            .order_by(
+                JobMatchingResult.score.desc().nulls_last(),
+                JobMatchingResult.rank.asc().nulls_last(),
+            )
         )
         .scalars()
         .all()
@@ -118,7 +121,7 @@ def get_match_report(
             {
                 "id": result.id,
                 "job_id": result.job_id,
-                "score": result.score,
+                "score": int(result.score) if result.score is not None else None,
                 "eligible": result.eligible,
                 "scoring_status": result.scoring_status,
                 "breakdown": result.breakdown,

@@ -1,11 +1,11 @@
 import ast
+from profile.profile_builder import Education, SkillEntry, UserProfile, WorkExperience
 
 import pytest
 
 import cv.cv_tailoring as cv_tailoring
 from cv.cv_service import validate_cv_selection
 from cv.cv_tailoring import CV_TAILORING_SYSTEM_PROMPT, TailoredCvOutput, _validate_grounded_content
-from profile.profile_builder import Education, SkillEntry, UserProfile, WorkExperience
 from matching.llm_matching import JobData
 
 
@@ -119,6 +119,35 @@ async def test_cv_context_excludes_fields_selected_as_profile_only(monkeypatch):
 
     assert "CoreCompetences" not in captured["profile"]
     assert "AdditionalInformations" not in captured["profile"]
+
+
+@pytest.mark.asyncio
+async def test_cv_context_omits_unavailable_matching_score(monkeypatch):
+    captured = {}
+
+    async def capture_context(system, user, schema_model, **kwargs):
+        captured.update(ast.literal_eval(user))
+        return schema_model(
+            target_role="Engineer",
+            summary="Python engineer",
+            experience=[],
+            education=[],
+            certifications=[],
+            skills=[],
+            summary_evidence=["Python engineer"],
+            experience_evidence=[],
+            education_evidence=[],
+            certification_evidence=[],
+        )
+
+    monkeypatch.setattr(cv_tailoring, "call_openai_structured", capture_context)
+    await cv_tailoring.build_tailored_cv(
+        UserProfile(Summary="Python engineer"),
+        JobData(title="Engineer"),
+        None,
+    )
+
+    assert "match_score" not in captured
 
 
 def test_tailored_cv_rejects_unsupported_summary_claims():

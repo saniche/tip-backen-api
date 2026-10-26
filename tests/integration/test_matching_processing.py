@@ -1,6 +1,6 @@
 import matching.matching_service as matching_service
-
 from shared.llm_structured import StructuredProviderError
+from shared.models import Job, User, UserProfile
 
 
 def test_matching_processing_persists_ranked_results_and_safe_owner_scope(client):
@@ -51,3 +51,44 @@ def test_matching_invalid_structured_output_returns_safe_failure(client, monkeyp
     processing_job = client.get(f"/api/v1/processing-jobs/{response.json()['id']}", headers=headers)
     assert processing_job.json()["status"] == "failed"
     assert client.get("/api/v1/matching/reports", headers=headers).json()[0]["status"] == "failed"
+
+
+def test_matching_api_serializes_empty_criteria_with_null_score(client, database_session):
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={"email": "match-empty@example.com", "password": "password123"},
+    ).json()
+    headers = {"Authorization": f"Bearer {registered['access_token']}"}
+    user = database_session.query(User).filter_by(email="match-empty@example.com").one()
+    database_session.add(
+        UserProfile(user_id=user.id, data={"skills": ["Python"]}, output_language="English")
+    )
+    jobs = [
+        Job(title="Python", required=["Python"], desirable=[], submitter_id=user.id),
+        Job(title="Rust", required=["Rust"], desirable=[], submitter_id=user.id),
+        Job(
+            title="No criteria",
+            required=[],
+            desirable=[],
+            technical_stack=["Python"],
+            key_responsibilities=["Build APIs"],
+            submitter_id=user.id,
+        ),
+    ]
+    database_session.add_all(jobs)
+    database_session.commit()
+
+    queued = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job.id for job in jobs]})
+    assert queued.status_code == 202
+    report = client.get(
+        f"/api/v1/matching/reports/{queued.json()['result_id']}",
+        headers=headers,
+    )
+
+    assert report.status_code == 200
+    results = report.json()["results"]
+    assert [result["score"] for result in results] == [100, 0, None]
+    assert [result["rank"] for result in results] == [1, 2, 3]
+    assert results[-1]["scoring_status"] == "unscorable"
+    assert results[-1]["explanation"]["requirements"] == []
+    assert results[-1]["explanation"]["desirables"] == []

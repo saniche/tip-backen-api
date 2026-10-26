@@ -224,7 +224,7 @@ class JobMatchingResult(Base):
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), index=True)
     profile_id: Mapped[str] = mapped_column(String, ForeignKey("user_profiles.id"))
-    score: Mapped[int] = mapped_column(Float)
+    score: Mapped[int | None] = mapped_column(Float, nullable=True)
     eligible: Mapped[bool] = mapped_column(Boolean)
     scoring_status: Mapped[str] = mapped_column(String)  # "scored" | "unscorable"
     breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)

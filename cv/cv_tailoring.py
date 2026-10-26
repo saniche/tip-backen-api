@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict
 
@@ -31,7 +31,8 @@ class TailoredCvOutput(BaseModel):
 
 
 CV_TAILORING_SYSTEM_PROMPT = (
-    "Write a tailored CV using only the supplied profile, job, and match score. "
+    "Write a tailored CV using only the supplied profile and job, and use a match score only when "
+    "a numeric score is supplied. Never infer or invent a missing score. "
     "Do not invent facts. Use empty arrays for unavailable sections and write in the requested language. "
     "For every generated summary, experience, education, and certification item, populate "
     "summary_evidence, experience_evidence, education_evidence, and certification_evidence "
@@ -121,16 +122,17 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
     _validate_section_evidence(output.certifications, output.certification_evidence, certification_sources, "certifications")
 
 
-async def build_tailored_cv(profile, job_data, match_score: int, output_language: str = "English") -> TailoredCv:
+async def build_tailored_cv(profile, job_data, match_score: int | None, output_language: str = "English") -> TailoredCv:
     profile_context = dict(getattr(profile, "__dict__", {}))
     profile_context.pop("CoreCompetences", None)
     profile_context.pop("AdditionalInformations", None)
     context = {
         "profile": profile_context,
         "job": getattr(job_data, "__dict__", {}),
-        "match_score": match_score,
         "output_language": output_language,
     }
+    if match_score is not None:
+        context["match_score"] = match_score
     output = await call_openai_structured(
         CV_TAILORING_SYSTEM_PROMPT, str(context), TailoredCvOutput, operation="cv_tailoring"
     )

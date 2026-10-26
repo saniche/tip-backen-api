@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta, timezone
-
-from shared.models import Job
-from matching.job_matching import build_match_result
-from matching.llm_matching import LlmMatchOutput
 from profile.profile_service import consolidate_profile_fragments
+
+from matching.job_matching import build_match_result
+from matching.llm_matching import ItemMatching, JobData, LlmMatchOutput, MatchAnalysis
+from shared.models import Job
 
 
 def test_profile_consolidation_preserves_user_edit_over_later_extraction():
@@ -20,12 +20,22 @@ def test_profile_consolidation_preserves_user_edit_over_later_extraction():
 
 def test_match_result_classifies_no_requirements_as_ineligible():
     result = build_match_result(
-        LlmMatchOutput(required_skills=[{"result": "No", "value": "Python", "rationale": "missing"}])
+        LlmMatchOutput(
+            requirements=[ItemMatching(criterion="Python", judgment="No", evidence="Not established.")],
+            desirables=[],
+            notes="Assessed.",
+            analysis=MatchAnalysis(
+                eligibility="Required evidence is insufficient.",
+                matching="The required criterion is not established.",
+                chance_of_success="Hiring remains uncertain.",
+            ),
+        ),
+        JobData(required=["Python"], desirable=[]),
     )
 
     assert result.score == 0
     assert result.eligible is False
-    assert result.breakdown["required_skills"] == 0.0
+    assert result.breakdown["requirements"] == 0.0
 
 
 def test_job_created_at_can_be_filtered_by_saved_date(database_session):

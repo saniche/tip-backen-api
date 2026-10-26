@@ -47,6 +47,7 @@ def test_migration_chain_is_complete():
     assert "007_job_additionals.py" in names
     assert "008_interest_listing_index.py" in names
     assert "009_application_journal.py" in names
+    assert "010_matching_nullable_score.py" in names
     migration_path = Path("alembic/versions/007_job_additionals.py")
     migration_tree = ast.parse(migration_path.read_text(encoding="utf-8"))
     revision_assignment = next(
@@ -73,11 +74,13 @@ def test_migrations_upgrade_and_create_jobs_constraints():
             interest_indexes = {row[1] for row in connection.execute("PRAGMA index_list('job_interests')")}
             session_columns = {row[1]: row[4] for row in connection.execute("PRAGMA table_info('profile_sessions')")}
             job_columns = {row[1]: row[4] for row in connection.execute("PRAGMA table_info('jobs')")}
+            matching_columns = {row[1]: row[3] for row in connection.execute("PRAGMA table_info('job_matchings')")}
         assert "ix_jobs_created_at" in job_indexes
         assert "ix_jobs_submitter_id" in job_indexes
         assert "ix_job_interests_user_job" in interest_indexes
         assert session_columns["output_language"] == "'English'"
         assert job_columns["additionals"] == "'[]'"
+        assert matching_columns["score"] == 0
     finally:
         try:
             database_path.unlink(missing_ok=True)
@@ -199,6 +202,77 @@ def test_application_journal_migration_preserves_existing_data_and_reverses():
         assert "application_status_history" not in tables
         assert existing_job == ("existing-job",)
         assert existing_interest == ("existing-interest",)
+    finally:
+        try:
+            database_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass
+
+
+def test_matching_score_nullable_migration_preserves_legacy_scores_and_guards_downgrade():
+    database_path = Path(tempfile.mktemp(suffix=".db"))
+    environment = os.environ.copy()
+    environment["DATABASE_URL"] = f"sqlite+pysqlite:///{database_path}"
+
+    def run(*args):
+        return _run_alembic(environment, *args)
+
+    try:
+        result = run("upgrade", "009_application_journal")
+        assert result.returncode == 0, result.stderr
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "INSERT INTO users (id, email, hashed_password) VALUES (?, ?, ?)",
+                ("matching-user", "matching-migration@example.com", "hash"),
+            )
+            connection.execute(
+                "INSERT INTO jobs (id, title, status) VALUES (?, ?, ?)",
+                ("matching-job", "Matching job", "completed"),
+            )
+            connection.execute(
+                "INSERT INTO user_profiles (id, user_id, data, output_language) VALUES (?, ?, ?, ?)",
+                ("matching-profile", "matching-user", "{}", "English"),
+            )
+            connection.execute(
+                "INSERT INTO job_matchings "
+                "(id, user_id, job_id, profile_id, score, eligible, scoring_status, llm_match_output, rules_version) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("legacy-result", "matching-user", "matching-job", "matching-profile", 76, 1, "scored", "{}", "v1"),
+            )
+            connection.commit()
+
+        result = run("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with sqlite3.connect(database_path) as connection:
+            score_column = next(
+                row for row in connection.execute("PRAGMA table_info('job_matchings')") if row[1] == "score"
+            )
+            score = connection.execute(
+                "SELECT score FROM job_matchings WHERE id = ?", ("legacy-result",)
+            ).fetchone()[0]
+            connection.execute("UPDATE job_matchings SET score = NULL WHERE id = ?", ("legacy-result",))
+            connection.commit()
+        assert score_column[3] == 0
+        assert score == 76
+
+        blocked_downgrade = run("downgrade", "009_application_journal")
+        assert blocked_downgrade.returncode != 0
+        assert "null scores exist" in blocked_downgrade.stderr
+
+        with sqlite3.connect(database_path) as connection:
+            connection.execute("UPDATE job_matchings SET score = 76 WHERE id = ?", ("legacy-result",))
+            connection.commit()
+        result = run("downgrade", "009_application_journal")
+        assert result.returncode == 0, result.stderr
+        with sqlite3.connect(database_path) as connection:
+            score_column = next(
+                row for row in connection.execute("PRAGMA table_info('job_matchings')") if row[1] == "score"
+            )
+            score = connection.execute(
+                "SELECT score FROM job_matchings WHERE id = ?", ("legacy-result",)
+            ).fetchone()[0]
+        assert score_column[3] == 1
+        assert score == 76
     finally:
         try:
             database_path.unlink(missing_ok=True)

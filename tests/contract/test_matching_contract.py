@@ -23,6 +23,12 @@ def test_matching_contract_ranks_results_and_denies_other_owner(client):
     assert detail.status_code == 200
     assert detail.json()["results"][0]["rank"] == 1
     assert "explanation" in detail.json()["results"][0]
+    assert set(detail.json()["results"][0]["explanation"]) == {
+        "requirements",
+        "desirables",
+        "notes",
+        "analysis",
+    }
 
     denied = client.get(
         f"/api/v1/matching/reports/{report_id}",

@@ -1,18 +1,18 @@
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
-from shared.models import Job, JobMatchingResult, MatchReport, UserProfile
 from matching.job_matching import build_match_result
 from matching.llm_matching import JobData, get_llm_match_output
+from shared.models import Job, JobMatchingResult, MatchReport, UserProfile
 
 
 @dataclass
 class MatchReportResult:
     id: str
     job_id: str
-    score: int
+    score: int | None
     eligible: bool
     breakdown: dict | None = None
     rank: int | None = None
@@ -59,13 +59,20 @@ def _view(report: MatchReport, results: list[JobMatchingResult]) -> MatchReportV
             MatchReportResult(
                 id=result.id,
                 job_id=result.job_id,
-                score=int(result.score),
+                score=int(result.score) if result.score is not None else None,
                 eligible=result.eligible,
                 breakdown=result.breakdown,
                 rank=result.rank,
                 explanation=result.llm_match_output,
             )
-            for result in sorted(results, key=lambda item: (item.rank or 0, -item.score))
+            for result in sorted(
+                results,
+                key=lambda item: (
+                    item.rank or 0,
+                    item.score is None,
+                    -(item.score or 0),
+                ),
+            )
         ],
     )
 
@@ -86,7 +93,7 @@ def create_pending_match_report(db: Session, user_id: str, job_ids: list[str]) -
     if any(job.status != "completed" for job in jobs.values()):
         raise ValueError("Job processing has not completed")
 
-    report = MatchReport(user_id=user_id, profile_id=profile.id, status="pending", rules_version="v1")
+    report = MatchReport(user_id=user_id, profile_id=profile.id, status="pending", rules_version="v2")
     db.add(report)
     db.commit()
     db.refresh(report)
@@ -107,8 +114,9 @@ async def process_match_report(db: Session, report_id: str, user_id: str, job_id
     prepared = []
     for job_id in job_ids:
         job = jobs[job_id]
-        llm_output = await get_llm_match_output(profile.data, _job_data(job))
-        scored = build_match_result(llm_output)
+        job_data = _job_data(job)
+        llm_output = await get_llm_match_output(profile.data, job_data)
+        scored = build_match_result(llm_output, job_data)
         prepared.append((job, llm_output, scored))
 
     persisted = []
@@ -122,7 +130,7 @@ async def process_match_report(db: Session, report_id: str, user_id: str, job_id
             eligible=scored.eligible,
             scoring_status=scored.scoring_status,
             breakdown={"groups": scored.breakdown, "effective_weights": scored.effective_weights},
-            llm_match_output=asdict(llm_output),
+            llm_match_output=llm_output.model_dump(mode="json"),
             profile_snapshot=dict(profile.data),
             job_snapshot={
                 "id": job.id,
@@ -133,11 +141,14 @@ async def process_match_report(db: Session, report_id: str, user_id: str, job_id
                 "desirable": job.desirable,
                 "technical_stack": job.technical_stack,
             },
-            rules_version="v1",
+            rules_version="v2",
         )
         db.add(result)
         persisted.append(result)
-    for rank, result in enumerate(sorted(persisted, key=lambda item: item.score, reverse=True), start=1):
+    for rank, result in enumerate(
+        sorted(persisted, key=lambda item: (item.score is None, -(item.score or 0))),
+        start=1,
+    ):
         result.rank = rank
     report.status = "completed"
     db.commit()

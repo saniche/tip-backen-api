@@ -1,45 +1,54 @@
-WEIGHTS = {
-    "required_qualifications": 0.35,
-    "required_skills": 0.40,
-    "desirable_qualifications": 0.10,
-    "desirable_skills": 0.10,
-    "technical_stack": 0.05,
-}
-VALUES = {"yes": 1.0, "partial": 0.5, "no": 0.0}
+from matching.llm_matching import ItemMatching, MatchingCriteria
+
+WEIGHTS = {"requirements": 0.75, "desirables": 0.25}
 
 
-def score_match(groups: dict[str, list[str | dict]]) -> dict:
-    available = {name: items for name, items in groups.items() if items}
+def _judgment(item: ItemMatching) -> str:
+    if item.judgment not in {"Yes", "No"}:
+        raise ValueError("Matching judgments must be exactly Yes or No.")
+    return item.judgment
+
+
+def _category_score(items: list[ItemMatching]) -> float | None:
+    if not items:
+        return None
+    return sum(_judgment(item) == "Yes" for item in items) / len(items)
+
+
+def score_match(
+    requirements: list[ItemMatching],
+    desirables: list[ItemMatching],
+    criteria: MatchingCriteria,
+) -> dict:
+    category_scores = {
+        "requirements": _category_score(requirements),
+        "desirables": _category_score(desirables),
+    }
+    available = {name: score for name, score in category_scores.items() if score is not None}
+    if not available:
+        return {
+            "score": None,
+            "eligible": False,
+            "scoring_status": "unscorable",
+            "breakdown": {},
+            "effective_weights": {},
+        }
+
     total_weight = sum(WEIGHTS[name] for name in available)
-    if not total_weight:
-        return {"score": 0, "eligible": False, "breakdown": {}, "effective_weights": {}}
-    breakdown = {}
-    effective = {}
-    for name, items in available.items():
-        scores = [
-            VALUES.get((item.get("result") if isinstance(item, dict) else str(item)).lower(), 0.0) for item in items
-        ]
-        group_score = sum(scores) / len(scores)
-        effective[name] = WEIGHTS[name] / total_weight
-        breakdown[name] = group_score
-    overall = sum(breakdown[name] * effective[name] for name in breakdown)
+    effective_weights = {name: WEIGHTS[name] / total_weight for name in available}
+    overall = sum(available[name] * effective_weights[name] for name in available)
 
-    # Eligibility is separate from score:
-    # - required_qualifications: strict, no partial credit — every item must be an exact "Yes".
-    #   An empty/absent category is vacuously satisfied (nothing required, nothing to fail).
-    # - required_skills: flexible — the averaged group score just needs to clear 70%.
-    # - desirable_* and technical_stack never affect eligibility, only score.
-    required_quals_items = groups.get("required_qualifications", [])
-    all_required_quals_matched = all(
-        VALUES.get((item.get("result") if isinstance(item, dict) else str(item)).lower(), 0.0) == 1.0
-        for item in required_quals_items
-    )
-    required_skills_score = breakdown.get("required_skills")
-    required_skills_ok = required_skills_score is None or required_skills_score >= 0.70
+    required_qualification_count = len(criteria.required_qualifications)
+    qualification_judgments = requirements[:required_qualification_count]
+    skill_judgments = requirements[required_qualification_count:]
+    qualifications_satisfied = all(_judgment(item) == "Yes" for item in qualification_judgments)
+    skill_score = _category_score(skill_judgments)
+    skills_satisfied = skill_score is None or skill_score >= 0.70
 
     return {
         "score": round(overall * 100),
-        "eligible": all_required_quals_matched and required_skills_ok,
-        "breakdown": breakdown,
-        "effective_weights": effective,
+        "eligible": qualifications_satisfied and skills_satisfied,
+        "scoring_status": "scored",
+        "breakdown": available,
+        "effective_weights": effective_weights,
     }

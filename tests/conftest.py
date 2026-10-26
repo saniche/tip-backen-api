@@ -1,24 +1,25 @@
+import json
 import os
-import ast
 
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
 
+import profile.profile_builder as profile_builder
+import profile.profile_builder_router as profile_builder_router
+
 import pytest
 from fastapi.testclient import TestClient
 
+import cv.cv_tailoring as cv_tailoring
 import cv.cv_tailoring_router as cv_tailoring_router
 import jobs.job_normalizer as job_normalizer
 import jobs.job_service as job_service
-import matching.matching_service as matching_service
 import matching.job_matching_router as job_matching_router
-import cv.cv_tailoring as cv_tailoring
 import matching.llm_matching as llm_matching
-import profile.profile_builder as profile_builder
-import profile.profile_builder_router as profile_builder_router
-from shared.database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
+import matching.matching_service as matching_service
 from main import app
+from shared.database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
 
 
 @pytest.fixture(autouse=True)
@@ -57,30 +58,41 @@ def structured_ai_provider(monkeypatch):
                 additionals=["Health benefits"],
             )
         if operation == "job_matching":
-            context = ast.literal_eval(user)
+            context = json.loads(user)
             job = context["job"]
             profile_text = str(context["profile"]).lower()
+
+            def criteria(values):
+                if isinstance(values, list):
+                    return values
+                return [
+                    *values.get("qualifications", []),
+                    *values.get("skills", []),
+                ]
 
             def assessments(values):
                 return [
                     {
-                        "result": "Yes" if str(value).lower() in profile_text else "No",
-                        "value": str(value),
-                        "rationale": (
-                            f"Profile contains {value}."
+                        "judgment": "Yes" if str(value).lower() in profile_text else "No",
+                        "criterion": str(value),
+                        "evidence": (
+                            f"The profile includes {value}."
                             if str(value).lower() in profile_text
-                            else f"No profile evidence found for {value}."
+                            else f"The profile does not establish {value}."
                         ),
                     }
                     for value in values
                 ]
 
             return schema_model(
-                required_qualifications=assessments(job.get("required", {}).get("qualifications", [])),
-                required_skills=assessments(job.get("required", {}).get("skills", [])),
-                desirable_qualifications=assessments(job.get("desirable", {}).get("qualifications", [])),
-                desirable_skills=assessments(job.get("desirable", {}).get("skills", [])),
-                technical_stack=assessments(job.get("technical_stack", [])), notes="Validated profile-to-job comparison.",
+                requirements=assessments(criteria(job.get("required") or {})),
+                desirables=assessments(criteria(job.get("desirable") or {})),
+                notes="Profile compared with the supplied criteria.",
+                analysis={
+                    "eligibility": "Eligibility depends on evidence for mandatory criteria.",
+                    "matching": "The profile has been compared with the listed criteria.",
+                    "chance_of_success": "Hiring prospects remain uncertain.",
+                },
             )
         if operation == "cv_tailoring":
             return schema_model(

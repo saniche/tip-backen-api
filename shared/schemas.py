@@ -247,7 +247,7 @@ class JobMatchingRequest(BaseModel):
 class JobMatchingOut(BaseModel):
     id: str
     job_id: str
-    score: int
+    score: int | None
     eligible: bool
     scoring_status: str
     breakdown: dict | None = None
