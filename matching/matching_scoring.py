@@ -38,9 +38,19 @@ def score_match(
     effective_weights = {name: WEIGHTS[name] / total_weight for name in available}
     overall = sum(available[name] * effective_weights[name] for name in available)
 
-    required_qualification_count = len(criteria.required_qualifications)
-    qualification_judgments = requirements[:required_qualification_count]
-    skill_judgments = requirements[required_qualification_count:]
+    if len(requirements) == len(criteria.requirements):
+        count = len(criteria.required_qualifications)
+        qualification_judgments = requirements[:count]
+        skill_judgments = requirements[count:]
+    else:
+        # Criteria were split or reworded, so positions no longer line up; match by text.
+        qualification_texts = {text.casefold() for text in criteria.required_qualifications}
+        qualification_judgments = [
+            item for item in requirements if item.criterion.casefold() in qualification_texts
+        ]
+        skill_judgments = [
+            item for item in requirements if item.criterion.casefold() not in qualification_texts
+        ]
     qualifications_satisfied = all(_judgment(item) == "Yes" for item in qualification_judgments)
     skill_score = _category_score(skill_judgments)
     skills_satisfied = skill_score is None or skill_score >= 0.70

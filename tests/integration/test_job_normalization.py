@@ -36,7 +36,8 @@ def test_job_normalization_deduplicates_and_exposes_structured_defaults(client):
     assert job["posting_date"] == "2026-10-15"
     assert job["requirements"] == ["Python"]
     assert job["desirables"] == ["FastAPI"]
-    assert "Python" in job["technical_stack"]
+    assert "Python" in job["tools_and_technologies"]
+    assert "technical_stack" not in job
     assert job["additionals"] == ["Health benefits"]
 
 

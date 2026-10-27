@@ -37,7 +37,7 @@ def test_tailored_cv_rejects_skills_missing_from_profile_and_job():
         summary_evidence=[], experience_evidence=[], education_evidence=[], certification_evidence=[],
     )
     profile = UserProfile(Skills=[SkillEntry(Name="Python")])
-    job = JobData(title="Engineer", technical_stack=["FastAPI"])
+    job = JobData(title="Engineer", tools_and_technologies=["FastAPI"])
 
     with pytest.raises(ValueError, match="unsupported skills"):
         _validate_grounded_content(output, profile, job)

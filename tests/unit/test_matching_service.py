@@ -10,7 +10,7 @@ def test_job_data_maps_flat_normalized_requirements_for_matching():
         title="Python Engineer",
         required=["Python", "FastAPI"],
         desirable=["Kubernetes"],
-        technical_stack=["Python"],
+        tools_and_technologies=["Python"],
     )
 
     job_data = _job_data(job)
@@ -40,7 +40,7 @@ async def test_match_report_creation_and_ownership(database_session):
         url="https://jobs.example/py",
         required={"qualifications": ["Bachelor's degree"], "skills": ["Python"]},
         desirable={"qualifications": [], "skills": ["FastAPI"]},
-        technical_stack=["Python", "FastAPI"],
+        tools_and_technologies=["Python", "FastAPI"],
         submitter_id=user.id,
     )
     database_session.add(job)
@@ -87,7 +87,7 @@ async def test_match_report_keeps_profile_and_job_snapshots(database_session):
         url="https://jobs.example/snapshot",
         required={"qualifications": [], "skills": ["Python"]},
         desirable={"qualifications": [], "skills": []},
-        technical_stack=["Python"],
+        tools_and_technologies=["Python"],
         submitter_id=user.id,
     )
     database_session.add_all([profile, job])
@@ -103,7 +103,7 @@ async def test_match_report_keeps_profile_and_job_snapshots(database_session):
     assert result.rank == 1
     assert job.required == {"qualifications": [], "skills": ["Python"]}
     assert job.desirable == {"qualifications": [], "skills": []}
-    assert job.technical_stack == ["Python"]
+    assert job.tools_and_technologies == ["Python"]
     assert job.key_responsibilities == []
 
 
@@ -117,7 +117,7 @@ async def test_empty_criteria_persist_null_score(database_session):
         title="No criteria",
         required=[],
         desirable=[],
-        technical_stack=["Python"],
+        tools_and_technologies=["Python"],
         key_responsibilities=["Build APIs"],
         submitter_id=user.id,
     )
@@ -146,7 +146,7 @@ async def test_match_provider_failure_does_not_persist_partial_report(database_s
     job = Job(
         title="Python Engineer", url="https://jobs.example/provider-failure",
         required={"qualifications": [], "skills": ["Python"]}, desirable={"qualifications": [], "skills": []},
-        technical_stack=["Python"], submitter_id=user.id,
+        tools_and_technologies=["Python"], submitter_id=user.id,
     )
     database_session.add_all([profile, job])
     database_session.commit()

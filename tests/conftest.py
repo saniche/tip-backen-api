@@ -54,7 +54,7 @@ def structured_ai_provider(monkeypatch):
                 key_responsibilities=["Build APIs"],
                 requirements=["Python"],
                 desirables=["FastAPI"],
-                technical_stack=["Python", "FastAPI"],
+                tools_and_technologies=["Python", "FastAPI"],
                 additionals=["Health benefits"],
             )
         if operation == "job_matching":

@@ -100,33 +100,35 @@ def test_non_json_or_markdown_wrapped_output_is_rejected(raw):
         LlmMatchOutput.model_validate_json(raw)
 
 
-@pytest.mark.parametrize(
-    "actual_requirements,actual_desirables",
-    [
-        ([], []),
-        ([item("Python"), item("Extra")], []),
-        ([item("SQL"), item("Python")], []),
-        ([item("python")], []),
-        ([], [item("Python")]),
-    ],
-)
 @pytest.mark.asyncio
-async def test_matching_rejects_missing_extra_reordered_altered_or_misassigned_criteria(
-    monkeypatch,
-    actual_requirements,
-    actual_desirables,
-):
+async def test_matching_rejects_category_without_any_assessment(monkeypatch):
     import matching.llm_matching as llm_matching
 
     async def fake_call(*args, **kwargs):
-        return output(actual_requirements, actual_desirables)
+        return output([], [])
 
     monkeypatch.setattr(llm_matching, "call_openai_structured", fake_call)
-    with pytest.raises(StructuredProviderError):
+    with pytest.raises(StructuredProviderError, match="requirements"):
         await get_llm_match_output(
             {"skills": ["Python", "SQL"]},
             JobData(required={"qualifications": [], "skills": ["Python", "SQL"]}, desirable={}),
         )
+
+
+@pytest.mark.asyncio
+async def test_matching_accepts_split_criteria(monkeypatch):
+    import matching.llm_matching as llm_matching
+
+    async def fake_call(*args, **kwargs):
+        return output([item("Python"), item("SQL"), item("Docker")])
+
+    monkeypatch.setattr(llm_matching, "call_openai_structured", fake_call)
+    result = await get_llm_match_output(
+        {"skills": ["Python"]},
+        JobData(required={"qualifications": [], "skills": ["Python", "SQL and Docker"]}, desirable={}),
+    )
+
+    assert len(result.requirements) == 3
 
 
 @pytest.mark.asyncio

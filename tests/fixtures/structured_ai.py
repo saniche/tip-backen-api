@@ -22,16 +22,20 @@ JOB_RESPONSE = {
     "key_responsibilities": ["Build APIs"],
     "required": {"qualifications": [], "skills": ["Python"]},
     "desirable": {"qualifications": [], "skills": ["FastAPI"]},
-    "technical_stack": ["Python", "FastAPI"],
+    "tools_and_technologies": ["Python", "FastAPI"],
 }
 
 MATCH_RESPONSE = {
-    "required_qualifications": [],
-    "required_skills": [{"result": "Yes", "value": "Python", "rationale": "Profile contains Python."}],
-    "desirable_qualifications": [],
-    "desirable_skills": [],
-    "technical_stack": [{"result": "Yes", "value": "Python", "rationale": "Profile contains Python."}],
-    "notes": "Validated profile-to-job comparison.",
+    "requirements": [
+        {"criterion": "Python", "judgment": "Yes", "evidence": "The profile includes Python."}
+    ],
+    "desirables": [],
+    "notes": "The profile was assessed against the supplied criteria.",
+    "analysis": {
+        "eligibility": "Mandatory requirements must be verified.",
+        "matching": "The profile shows relevant evidence.",
+        "chance_of_success": "Hiring outcomes remain uncertain.",
+    },
 }
 
 CV_RESPONSE = {

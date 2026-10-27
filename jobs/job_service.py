@@ -19,7 +19,7 @@ class JobNormalizationOutput(BaseModel):
     key_responsibilities: list[str]
     requirements: list[str]
     desirables: list[str]
-    technical_stack: list[str]
+    tools_and_technologies: list[str]
     additionals: list[str]
 
 

@@ -24,7 +24,7 @@ async def test_normalize_job_content_returns_validated_canonical_shape(monkeypat
             key_responsibilities=["Build APIs"],
             requirements=["Python"],
             desirables=[],
-            technical_stack=["Python"],
+            tools_and_technologies=["Python"],
             additionals=[],
         )
 
@@ -38,6 +38,8 @@ async def test_normalize_job_content_returns_validated_canonical_shape(monkeypat
     assert job["source"] == "Indeed"
     assert job["requirements"] == ["Python"]
     assert job["desirables"] == []
+    assert job["tools_and_technologies"] == ["Python"]
+    assert "technical_stack" not in job
     assert job["additionals"] == []
     assert set(job) == {
         "title",
@@ -49,7 +51,7 @@ async def test_normalize_job_content_returns_validated_canonical_shape(monkeypat
         "key_responsibilities",
         "requirements",
         "desirables",
-        "technical_stack",
+        "tools_and_technologies",
         "additionals",
     }
     with pytest.raises(ValidationError):
@@ -63,9 +65,23 @@ async def test_normalize_job_content_returns_validated_canonical_shape(monkeypat
             key_responsibilities=[],
             requirements=[],
             desirables=[],
-            technical_stack=[],
+            tools_and_technologies=[],
             additionals=[],
             explanation="not allowed",
+        )
+    with pytest.raises(ValidationError):
+        job_service.JobNormalizationOutput(
+            title="Engineer",
+            company="Example",
+            location="",
+            salary="",
+            source="Other",
+            posting_date=None,
+            key_responsibilities=[],
+            requirements=[],
+            desirables=[],
+            technical_stack=[],
+            additionals=[],
         )
 
 
@@ -86,7 +102,7 @@ async def test_normalize_job_content_defaults_missing_date_to_yesterday(monkeypa
             key_responsibilities=[],
             requirements=[],
             desirables=[],
-            technical_stack=[],
+            tools_and_technologies=[],
             additionals=[],
         )
 

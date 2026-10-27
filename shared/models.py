@@ -107,7 +107,7 @@ class Job(Base):
     key_responsibilities: Mapped[list] = mapped_column(JSON, default=list)
     required: Mapped[dict | list] = mapped_column(JSON, default=dict)
     desirable: Mapped[dict | list] = mapped_column(JSON, default=dict)
-    technical_stack: Mapped[list] = mapped_column(JSON, default=list)
+    tools_and_technologies: Mapped[list] = mapped_column(JSON, default=list)
     additionals: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String, default="completed")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

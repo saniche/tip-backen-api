@@ -48,6 +48,7 @@ def test_migration_chain_is_complete():
     assert "008_interest_listing_index.py" in names
     assert "009_application_journal.py" in names
     assert "010_matching_nullable_score.py" in names
+    assert "011_tools_and_technologies.py" in names
     migration_path = Path("alembic/versions/007_job_additionals.py")
     migration_tree = ast.parse(migration_path.read_text(encoding="utf-8"))
     revision_assignment = next(
@@ -273,6 +274,54 @@ def test_matching_score_nullable_migration_preserves_legacy_scores_and_guards_do
             ).fetchone()[0]
         assert score_column[3] == 1
         assert score == 76
+    finally:
+        try:
+            database_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass
+
+
+def test_tools_and_technologies_migration_preserves_data_and_reverses():
+    database_path = Path(tempfile.mktemp(suffix=".db"))
+    environment = os.environ.copy()
+    environment["DATABASE_URL"] = f"sqlite+pysqlite:///{database_path}"
+
+    def run(*args):
+        return _run_alembic(environment, *args)
+
+    try:
+        result = run("upgrade", "010_matching_nullable_score")
+        assert result.returncode == 0, result.stderr
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "INSERT INTO jobs (id, title, technical_stack, status) VALUES (?, ?, ?, ?)",
+                ("tools-job", "Tools job", '["Python", "FastAPI"]', "completed"),
+            )
+            connection.commit()
+
+        result = run("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        with sqlite3.connect(database_path) as connection:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info('jobs')")}
+            value = connection.execute(
+                "SELECT tools_and_technologies FROM jobs WHERE id = ?",
+                ("tools-job",),
+            ).fetchone()[0]
+        assert "tools_and_technologies" in columns
+        assert "technical_stack" not in columns
+        assert value == '["Python", "FastAPI"]'
+
+        result = run("downgrade", "010_matching_nullable_score")
+        assert result.returncode == 0, result.stderr
+        with sqlite3.connect(database_path) as connection:
+            columns = {row[1] for row in connection.execute("PRAGMA table_info('jobs')")}
+            value = connection.execute(
+                "SELECT technical_stack FROM jobs WHERE id = ?",
+                ("tools-job",),
+            ).fetchone()[0]
+        assert "technical_stack" in columns
+        assert "tools_and_technologies" not in columns
+        assert value == '["Python", "FastAPI"]'
     finally:
         try:
             database_path.unlink(missing_ok=True)

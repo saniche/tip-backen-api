@@ -185,7 +185,7 @@ class JobListing(BaseModel):
     key_responsibilities: list[str]
     required: JobRequirements
     desirable: JobRequirements
-    technical_stack: list[str]
+    tools_and_technologies: list[str]
 
 
 class JobExtraction(BaseModel):

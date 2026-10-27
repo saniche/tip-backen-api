@@ -1,4 +1,5 @@
 import logging
+from profile.serialization import dict_to_user_profile
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import desc, select
@@ -6,6 +7,9 @@ from sqlalchemy.orm import Session
 
 from auth.security import get_current_user
 from cv.cv_service import validate_cv_selection
+from cv.cv_tailoring import build_tailored_cv
+from cv.markdown_writer import render_tailored_cv_markdown, suggest_filename
+from matching.llm_matching import JobData
 from shared.database import SessionLocal, get_db
 from shared.models import (
     CVRequest,
@@ -18,11 +22,7 @@ from shared.models import (
     User,
     UserProfile,
 )
-from cv.cv_tailoring import build_tailored_cv
-from matching.llm_matching import JobData
-from cv.markdown_writer import render_tailored_cv_markdown, suggest_filename
 from shared.schemas import CvTailoringRequest, ProcessingJobOut
-from profile.serialization import dict_to_user_profile
 from shared.storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
 
 router = APIRouter(tags=["cv-tailoring"])
@@ -65,7 +65,7 @@ async def _run_cv_tailoring(
                 title=title,
                 required=job.required,
                 desirable=job.desirable,
-                technical_stack=job.technical_stack,
+                tools_and_technologies=job.tools_and_technologies,
                 key_responsibilities=job.key_responsibilities,
                 summary=job.summary,
             )

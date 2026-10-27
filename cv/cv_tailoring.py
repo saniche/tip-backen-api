@@ -46,7 +46,10 @@ def _source_values(profile, job_data) -> tuple[set[str], set[str], set[str], set
         str(item.Name if hasattr(item, "Name") else item).strip().lower()
         for item in profile_skill_items
     }
-    job_skills = {str(item).strip().lower() for item in getattr(job_data, "technical_stack", []) or []}
+    job_skills = {
+        str(item).strip().lower()
+        for item in getattr(job_data, "tools_and_technologies", []) or []
+    }
     summary_sources = {value for value in (getattr(profile, "Summary", ""), getattr(job_data, "summary", ""), getattr(job_data, "title", "")) if value}
     experience_sources = {
         value

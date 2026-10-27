@@ -126,11 +126,11 @@ def test_required_skills_keep_existing_seventy_percent_eligibility_threshold():
 
 
 def test_context_and_analysis_do_not_contribute_to_scoring():
-    first_job = JobData(required=["Python"], desirable=["FastAPI"], technical_stack=["Python"])
+    first_job = JobData(required=["Python"], desirable=["FastAPI"], tools_and_technologies=["Python"])
     second_job = JobData(
         required=["Python"],
         desirable=["FastAPI"],
-        technical_stack=["Rust", "Kubernetes"],
+        tools_and_technologies=["Rust", "Kubernetes"],
         key_responsibilities=["Completely different responsibilities"],
     )
     first = result(["Yes"], ["No"])

@@ -9,7 +9,15 @@ from auth.security import get_current_user
 from jobs.interest_service import contains_pattern, ensure_interest, list_interests, remove_interest
 from jobs.job_service import normalize_job_content
 from shared.database import SessionLocal, get_db
-from shared.models import Job, JobInterest, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User, ApplicationJournal
+from shared.models import (
+    ApplicationJournal,
+    Job,
+    JobInterest,
+    ProcessingJob,
+    ProcessingJobStatus,
+    ProcessingJobType,
+    User,
+)
 from shared.schemas import (
     InterestItem,
     InterestJobHeader,
@@ -18,7 +26,6 @@ from shared.schemas import (
     JobNormalizeRequest,
     NormalizedJobHeader,
     NormalizedJobsResponse,
-    
 )
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -265,7 +272,7 @@ def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Ses
         "key_responsibilities": job.key_responsibilities,
         "requirements": job.required,
         "desirables": job.desirable,
-        "technical_stack": job.technical_stack,
+        "tools_and_technologies": job.tools_and_technologies,
         "additionals": job.additionals,
         "status": job.status,
         "submitter_id": job.submitter_id,

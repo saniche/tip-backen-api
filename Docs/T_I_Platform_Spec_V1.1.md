@@ -377,7 +377,7 @@ Structured job postings.
 
 | desirable | List[String] | Nice-to-have qualifications |
 
-| technical_stack | List[String] | Technologies used |
+| tools_and_technologies | List[String] | Tools and technologies used |
 
 ### 5.2 Job Listing (LLM)
 
@@ -409,7 +409,7 @@ LLM-extracted job data.
 
 | desirable | JobRequirements | Desirable qualifications |
 
-| technical_stack | List[String] | Technologies used |
+| tools_and_technologies | List[String] | Tools and technologies used |
 
 ### 5.3 Job Requirements Structure
 
@@ -469,7 +469,7 @@ qualification matches |
 | desirable_skills | List[LlmItemMatching] | Desirable skill
 matches |
 
-| technical_stack | List[LlmItemMatching] | Technical stack matches
+| tools_and_technologies | List[String] | Tools and technologies used as context
 |
 
 | ai_analysis | String | Overall match analysis |

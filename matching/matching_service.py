@@ -39,7 +39,7 @@ def _job_data(job: Job) -> JobData:
         title=job.title,
         required=required,
         desirable=desirable,
-        technical_stack=job.technical_stack,
+        tools_and_technologies=job.tools_and_technologies,
         key_responsibilities=job.key_responsibilities,
         company=job.company,
         location=job.location,
@@ -139,7 +139,7 @@ async def process_match_report(db: Session, report_id: str, user_id: str, job_id
                 "location": job.location,
                 "required": job.required,
                 "desirable": job.desirable,
-                "technical_stack": job.technical_stack,
+                "tools_and_technologies": job.tools_and_technologies,
             },
             rules_version="v2",
         )

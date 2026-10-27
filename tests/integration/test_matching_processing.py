@@ -70,7 +70,7 @@ def test_matching_api_serializes_empty_criteria_with_null_score(client, database
             title="No criteria",
             required=[],
             desirable=[],
-            technical_stack=["Python"],
+            tools_and_technologies=["Python"],
             key_responsibilities=["Build APIs"],
             submitter_id=user.id,
         ),
