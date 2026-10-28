@@ -20,6 +20,7 @@ def start_processing_job(db: Session, job_id: str) -> ProcessingJob:
     return job
 
 
+
 def complete_processing_job(db: Session, job_id: str, result_id: str) -> ProcessingJob:
     job = db.get(ProcessingJob, job_id)
     if job is None:
