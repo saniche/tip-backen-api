@@ -1,3 +1,8 @@
+import logging
+
+logger = logging.getLogger("tip-api")
+
+
 def validate_cv_selection(matchings: list[dict], mode: str) -> None:
     if not matchings:
         raise ValueError("At least one matching result is required")
@@ -15,3 +20,19 @@ def validate_grounded_content(content: str, profile_text: str, job_text: str) ->
     for line in content.splitlines():
         if line.startswith("- ") and line[2:].strip().lower() not in allowed_context:
             raise ValueError("Generated CV contains unsupported information")
+
+
+def delete_tailored_record(db, record, remove_blob) -> None:
+    """Delete a tailored document row and its stored file.
+
+    The row goes first so a storage hiccup can never leave a listed document without a file;
+    a failed blob removal is logged and the (unreachable) blob can be swept later.
+    """
+    blob_path = record.blob_path
+    db.delete(record)
+    db.commit()
+    if blob_path:
+        try:
+            remove_blob(blob_path)
+        except Exception:  # noqa: BLE001 - the row is already gone; do not fail the request
+            logger.warning("Blob cleanup failed after delete", extra={"blob_path": blob_path})

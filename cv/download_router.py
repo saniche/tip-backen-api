@@ -10,6 +10,7 @@ router = APIRouter(tags=["download"])
 
 
 @router.get("/cv/{tailored_cv_id}/download")
+@router.get("/tailoring/documents/{tailored_cv_id}/download")
 def download_tailored_cv(
     tailored_cv_id: str,
     current_user: User = Depends(get_current_user),
@@ -17,7 +18,9 @@ def download_tailored_cv(
 ):
     record = db.get(TailoredCVRecord, tailored_cv_id)
     if not record or record.user_id != current_user.id:
-        raise HTTPException(404, "Tailored CV not found")
+        raise HTTPException(404, "Tailored document not found")
+    if record.status != "completed" or not record.blob_path:
+        raise HTTPException(404, "Tailored document is not available")
 
     content = download_markdown(record.blob_path)
     filename = record.blob_path.rsplit("/", 1)[-1]

@@ -1,9 +1,13 @@
-import re
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, ConfigDict
 
+from shared.grounding import unsupported_terms
 from shared.llm_structured import call_openai_structured
+
+
+class GroundingError(ValueError):
+    """The generated CV contains content that is not backed by the profile or job."""
 
 
 @dataclass
@@ -36,8 +40,17 @@ CV_TAILORING_SYSTEM_PROMPT = (
     "Do not invent facts. Use empty arrays for unavailable sections and write in the requested language. "
     "For every generated summary, experience, education, and certification item, populate "
     "summary_evidence, experience_evidence, education_evidence, and certification_evidence "
-    "with exact source phrases from the supplied profile or job context."
+    "with exact source phrases from the supplied profile or job context. "
+    "Reuse the wording of the cited source phrases closely; never add numbers, seniority, leadership "
+    "or employer claims that the sources do not contain."
 )
+
+STYLE_REFERENCE_ADDENDUM = (
+    " A style_reference document is supplied. Use it ONLY to match tone, voice, sentence length and "
+    "phrasing style. Do not reuse any fact, employer, date, number or achievement from it; every fact "
+    "must still come from the profile. Do not stray far from its register."
+)
+MAX_STYLE_REFERENCE_CHARS = 6000
 
 
 def _source_values(profile, job_data) -> tuple[set[str], set[str], set[str], set[str], set[str]]:
@@ -91,22 +104,19 @@ def _source_values(profile, job_data) -> tuple[set[str], set[str], set[str], set
 
 def _validate_evidence(values: list[str], sources: set[str], field_name: str) -> None:
     if not values or any(value not in sources for value in values):
-        raise ValueError(f"Tailored CV contains unsupported {field_name} evidence")
+        raise GroundingError(f"Tailored CV contains unsupported {field_name} evidence")
 
 
 def _validate_claim_against_evidence(value: str, evidence: list[str], field_name: str) -> None:
-    evidence_words = set(re.findall(r"\w+", " ".join(evidence).lower()))
-    neutral_words = {"tailored", "profile", "candidate", "target", "role", "resume", "curriculum", "vitae", "experience"}
-    unsupported = {
-        word for word in re.findall(r"\w+", value.lower()) if len(word) > 3 and word not in evidence_words | neutral_words
-    }
+    unsupported = unsupported_terms(value, evidence)
     if unsupported:
-        raise ValueError(f"Tailored CV contains unsupported {field_name} content")
+        details = ", ".join(sorted(unsupported)[:5])
+        raise GroundingError(f"Tailored CV contains unsupported {field_name} content: {details}")
 
 
 def _validate_section_evidence(items: list[str], evidence: list[list[str]], sources: set[str], field_name: str) -> None:
     if len(items) != len(evidence):
-        raise ValueError(f"Tailored CV {field_name} evidence does not match generated items")
+        raise GroundingError(f"Tailored CV {field_name} evidence does not match generated items")
     for item, item_evidence in zip(items, evidence, strict=True):
         _validate_evidence(item_evidence, sources, field_name)
         _validate_claim_against_evidence(item, item_evidence, field_name)
@@ -115,9 +125,9 @@ def _validate_section_evidence(items: list[str], evidence: list[list[str]], sour
 def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> None:
     supported_skills, summary_sources, experience_sources, education_sources, certification_sources = _source_values(profile, job_data)
     if any(skill.strip().lower() not in supported_skills for skill in output.skills):
-        raise ValueError("Tailored CV contains unsupported skills")
+        raise GroundingError("Tailored CV contains unsupported skills")
     if output.target_role != (getattr(job_data, "title", None) or ""):
-        raise ValueError("Tailored CV contains an unsupported target role")
+        raise GroundingError("Tailored CV contains an unsupported target role")
     _validate_evidence(output.summary_evidence, summary_sources, "summary")
     _validate_claim_against_evidence(output.summary, output.summary_evidence, "summary")
     _validate_section_evidence(output.experience, output.experience_evidence, experience_sources, "experience")
@@ -125,7 +135,13 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
     _validate_section_evidence(output.certifications, output.certification_evidence, certification_sources, "certifications")
 
 
-async def build_tailored_cv(profile, job_data, match_score: int | None, output_language: str = "English") -> TailoredCv:
+async def build_tailored_cv(
+    profile,
+    job_data,
+    match_score: int | None,
+    output_language: str = "English",
+    style_reference: str | None = None,
+) -> TailoredCv:
     profile_context = dict(getattr(profile, "__dict__", {}))
     profile_context.pop("CoreCompetences", None)
     profile_context.pop("AdditionalInformations", None)
@@ -136,8 +152,29 @@ async def build_tailored_cv(profile, job_data, match_score: int | None, output_l
     }
     if match_score is not None:
         context["match_score"] = match_score
-    output = await call_openai_structured(
-        CV_TAILORING_SYSTEM_PROMPT, str(context), TailoredCvOutput, operation="cv_tailoring"
-    )
-    _validate_grounded_content(output, profile, job_data)
-    return TailoredCv(**output.model_dump(exclude={"summary_evidence", "experience_evidence", "education_evidence", "certification_evidence"}))
+    system_prompt = CV_TAILORING_SYSTEM_PROMPT
+    if style_reference and style_reference.strip():
+        context["style_reference"] = style_reference.strip()[:MAX_STYLE_REFERENCE_CHARS]
+        system_prompt += STYLE_REFERENCE_ADDENDUM
+
+    last_error: GroundingError | None = None
+    for attempt in range(2):
+        attempt_context = dict(context)
+        if last_error is not None:
+            attempt_context["validation_feedback"] = (
+                f"Your previous answer was rejected: {last_error}. Fix it by reusing the cited source wording."
+            )
+        output = await call_openai_structured(
+            system_prompt, str(attempt_context), TailoredCvOutput, operation="cv_tailoring"
+        )
+        try:
+            _validate_grounded_content(output, profile, job_data)
+        except GroundingError as exc:
+            last_error = exc
+            continue
+        return TailoredCv(
+            **output.model_dump(
+                exclude={"summary_evidence", "experience_evidence", "education_evidence", "certification_evidence"}
+            )
+        )
+    raise last_error

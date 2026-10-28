@@ -81,7 +81,9 @@ def create_pending_match_report(db: Session, user_id: str, job_ids: list[str]) -
     if not job_ids:
         raise ValueError("At least one job id is required")
     profile = (
-        db.execute(select(UserProfile).where(UserProfile.user_id == user_id).order_by(desc(UserProfile.created_at)))
+        db.execute(select(UserProfile).where(UserProfile.user_id == user_id,
+            UserProfile.deleted_at.is_(None),
+        ).order_by(desc(UserProfile.created_at)))
         .scalars()
         .first()
     )

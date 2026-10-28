@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -302,3 +303,42 @@ class CvMetadataOut(BaseModel):
     status: str
     target_job_ids: list[str]
     download_url: str
+
+
+class ProfilePatch(BaseModel):
+    """Partial edit of one profile. Omitted fields are left untouched."""
+
+    model_config = ConfigDict(extra="forbid")
+    data: dict | None = None
+    output_language: str | None = None
+    label: str | None = Field(default=None, max_length=100)
+
+
+TailoringMode = Literal["per_job", "general"]
+
+
+class CoverLetterOptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: bool = False
+    mode: TailoringMode | None = None
+
+
+class TailoringRequestIn(BaseModel):
+    """Tailor a CV (always) and optionally a cover letter for a list of jobs.
+
+    per_job: one document per job. general: one document tailored to the whole group of jobs.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    job_ids: list[str] = Field(min_length=1, max_length=10)
+    profile_id: str | None = None  # None -> the latest profile
+    cv_mode: TailoringMode = "per_job"
+    cover_letter: CoverLetterOptions = Field(default_factory=CoverLetterOptions)
+    output_language: str = "English"
+
+    @model_validator(mode="after")
+    def validate_request(self):
+        self.job_ids = list(dict.fromkeys(self.job_ids))  # drop duplicates, keep order
+        if self.cover_letter.enabled and self.cover_letter.mode is None:
+            raise ValueError("cover_letter.mode is required when the cover letter is enabled")
+        return self

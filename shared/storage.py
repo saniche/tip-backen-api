@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
-from azure.storage.blob import BlobServiceClient, ContentSettings
+from azure.storage.blob import BlobSasPermissions, BlobServiceClient, ContentSettings, generate_blob_sas
 
 CONTAINER_NAME = os.environ.get("CV_BLOB_CONTAINER", "tailored-cvs")
 _connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
@@ -86,16 +86,30 @@ def build_blob_path(user_id: str, tailored_cv_id: str, filename: str) -> str:
 
 
 def generate_temporary_download_url(blob_path: str, expires_minutes: int = 60) -> str:
+    """Read-only, expiring download link.
+
+    With AZURE_STORAGE_ACCOUNT_NAME/KEY configured this is a real Azure Blob SAS URL (service SAS,
+    read permission, forced attachment filename). Without credentials (local/dev) it returns a
+    clearly fake, never-resolvable URL so the API shape stays the same.
+    """
     account_name = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
     account_key = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
     expires = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
-    expiry = int(expires.timestamp())
-    quoted_path = quote(blob_path, safe="")
 
     if not account_name or not account_key:
+        expiry = int(expires.timestamp())
         signed = hmac.new(b"dev-key", f"{blob_path}|{expiry}".encode("utf-8"), hashlib.sha256).hexdigest()
-        return f"https://example.invalid/download/{quoted_path}?expires={expiry}&sig={signed}"
+        return f"https://example.invalid/download/{quote(blob_path, safe='')}?expires={expiry}&sig={signed}"
 
-    string_to_sign = f"{blob_path}\n{expiry}"
-    signature = hmac.new(account_key.encode("utf-8"), string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
-    return f"https://{account_name}.blob.core.windows.net/{CONTAINER_NAME}/{quoted_path}?se={expiry}&sig={signature}"
+    filename = blob_path.rsplit("/", 1)[-1]
+    token = generate_blob_sas(
+        account_name=account_name,
+        container_name=CONTAINER_NAME,
+        blob_name=blob_path,
+        account_key=account_key,
+        permission=BlobSasPermissions(read=True),
+        expiry=expires,
+        content_disposition=f'attachment; filename="{filename}"',
+        content_type="text/markdown; charset=utf-8",
+    )
+    return f"https://{account_name}.blob.core.windows.net/{CONTAINER_NAME}/{quote(blob_path, safe='/')}?{token}"

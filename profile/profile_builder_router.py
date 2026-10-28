@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from io import BytesIO
 from profile.profile_builder import extract_profile
-from profile.profile_service import merge_profile_values
+from profile.profile_service import apply_profile_edits, merge_profile_values
 from zipfile import BadZipFile
 
 from docx import Document
@@ -106,7 +106,9 @@ async def _run_profile_session(session_id: str, user_id: str, processing_job_id:
             fragments.append({"data": fragment_data, "evidence_type": "extracted"})
             file.status = ProfileFileStatus.COMPLETED
         previous = (
-            db.execute(select(UserProfile).where(UserProfile.user_id == user_id).order_by(desc(UserProfile.created_at)))
+            db.execute(select(UserProfile).where(UserProfile.user_id == user_id,
+            UserProfile.deleted_at.is_(None),
+        ).order_by(desc(UserProfile.created_at)))
             .scalars()
             .first()
         )
@@ -199,7 +201,9 @@ def get_profile_session(session_id: str, current_user: User = Depends(get_curren
 def get_profile(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = (
         db.execute(
-            select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))
+            select(UserProfile).where(UserProfile.user_id == current_user.id,
+            UserProfile.deleted_at.is_(None),
+        ).order_by(desc(UserProfile.created_at))
         )
         .scalars()
         .first()
@@ -220,7 +224,9 @@ def update_profile(
 ):
     profile = (
         db.execute(
-            select(UserProfile).where(UserProfile.user_id == current_user.id).order_by(desc(UserProfile.created_at))
+            select(UserProfile).where(UserProfile.user_id == current_user.id,
+            UserProfile.deleted_at.is_(None),
+        ).order_by(desc(UserProfile.created_at))
         )
         .scalars()
         .first()
@@ -228,16 +234,7 @@ def update_profile(
     if profile is None:
         profile = UserProfile(user_id=current_user.id, data={}, evidence={}, output_language=payload.output_language)
         db.add(profile)
-    merged = dict(profile.data)
-    for key, value in payload.data.items():
-        if isinstance(value, dict) and "value" in value:
-            merged[key] = value["value"]
-        else:
-            merged[key] = value
-    profile.data = merged
-    profile.evidence = dict(profile.evidence or {})
-    profile.evidence.update({key: "user_edited" for key in payload.data})
-    profile.output_language = payload.output_language
+    apply_profile_edits(profile, payload.data, payload.output_language, None)
     db.commit()
     db.refresh(profile)
     return {

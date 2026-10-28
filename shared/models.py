@@ -192,7 +192,7 @@ class ApplicationStatusHistory(Base):
 
 
 class UserProfile(Base):
-    """Append-only: each rebuild creates a new row. The most recent row per user is 'current'."""
+    """A user can have several profiles; the most recent non-deleted one is the default."""
 
     __tablename__ = "user_profiles"
 
@@ -201,7 +201,11 @@ class UserProfile(Base):
     data: Mapped[dict] = mapped_column(JSON)  # serialized UserProfile (see profile_builder.UserProfile)
     evidence: Mapped[dict] = mapped_column(JSON, default=dict)
     output_language: Mapped[str] = mapped_column(String, default="English")
+    label: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, onupdate=_now)
+    # Soft delete: match reports and tailored documents keep a valid FK to the profile they used.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class MatchReport(Base):
@@ -237,29 +241,63 @@ class JobMatchingResult(Base):
 
 
 class TailoredCVRecord(Base):
+    """A generated tailored document (table name kept for compatibility: it now holds CVs and cover letters)."""
+
     __tablename__ = "tailored_cvs"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     request_id: Mapped[str | None] = mapped_column(String, ForeignKey("cv_requests.id"), nullable=True, index=True)
-    matching_id: Mapped[str] = mapped_column(String, ForeignKey("job_matchings.id"), index=True)
+    matching_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("job_matchings.id"), nullable=True, index=True
+    )  # legacy /cv/tailor only; the /tailoring flow works from job_ids
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    blob_path: Mapped[str] = mapped_column(String)  # key/path in Azure Blob Storage
-    mode: Mapped[str] = mapped_column(String, default="per_job")
-    status: Mapped[str] = mapped_column(String, default="completed")
+    blob_path: Mapped[str] = mapped_column(String)  # key/path in Azure Blob Storage ("" while pending/failed)
+    mode: Mapped[str] = mapped_column(String, default="per_job")  # per_job | general (legacy: group_all)
+    status: Mapped[str] = mapped_column(String, default="completed")  # completed | failed
     target_job_ids: Mapped[list] = mapped_column(JSON, default=list)
+    kind: Mapped[str] = mapped_column(String, default="cv", server_default="cv")  # cv | cover_letter
+    job_id: Mapped[str | None] = mapped_column(String, ForeignKey("jobs.id"), nullable=True)  # null for general
+    profile_id: Mapped[str | None] = mapped_column(String, ForeignKey("user_profiles.id"), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    warning: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
 class CVRequest(Base):
+    """One tailoring request (CV and optionally cover letter). Table name kept for compatibility."""
+
     __tablename__ = "cv_requests"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    matching_ids: Mapped[list] = mapped_column(JSON, default=list)
-    mode: Mapped[str] = mapped_column(String, default="per_job")
-    status: Mapped[str] = mapped_column(String, default="completed")
+    matching_ids: Mapped[list] = mapped_column(JSON, default=list)  # legacy /cv/tailor
+    mode: Mapped[str] = mapped_column(String, default="per_job")  # CV mode
+    status: Mapped[str] = mapped_column(String, default="completed")  # processing|completed|partial|failed
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    job_ids: Mapped[list] = mapped_column(JSON, default=list)
+    profile_id: Mapped[str | None] = mapped_column(String, ForeignKey("user_profiles.id"), nullable=True)
+    cover_letter_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    cover_letter_mode: Mapped[str | None] = mapped_column(String, nullable=True)
+    output_language: Mapped[str] = mapped_column(String, default="English", server_default="English")
+
+
+class UserDocument(Base):
+    """A user's default CV or default cover letter: at most one of each kind per user.
+
+    Optional style reference for tailoring (tone and voice only); the profile stays the source of facts.
+    """
+
+    __tablename__ = "user_documents"
+    __table_args__ = (UniqueConstraint("user_id", "kind", name="uq_user_document_user_kind"),)
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String)  # cv | cover_letter
+    content: Mapped[str] = mapped_column(Text)
+    filename: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
 
 
 class ProcessingJobType(str, enum.Enum):

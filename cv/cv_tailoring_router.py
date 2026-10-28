@@ -6,10 +6,10 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth.security import get_current_user
-from cv.cv_service import validate_cv_selection
-from cv.cv_tailoring import build_tailored_cv
+from cv.cv_service import delete_tailored_record, validate_cv_selection
+from cv.cv_tailoring import GroundingError, build_tailored_cv
+from cv.job_group import merge_jobs
 from cv.markdown_writer import render_tailored_cv_markdown, suggest_filename
-from matching.llm_matching import JobData
 from shared.database import SessionLocal, get_db
 from shared.models import (
     CVRequest,
@@ -54,22 +54,20 @@ async def _run_cv_tailoring(
         selected = matchings if mode == "per_job" else matchings[:1]
         records = []
         for matching in selected:
-            job = db.get(Job, matching.job_id)
-            if job is None:
-                raise ValueError("Matching context not found")
-            title = job.title
-            if mode == "group_all":
-                titles = [db.get(Job, item.job_id).title for item in matchings if db.get(Job, item.job_id)]
-                title = " / ".join(titles)
-            job_data = JobData(
-                title=title,
-                required=job.required,
-                desirable=job.desirable,
-                tools_and_technologies=job.tools_and_technologies,
-                key_responsibilities=job.key_responsibilities,
-                summary=job.summary,
-            )
-            tailored = await build_tailored_cv(profile, job_data, match_score=matching.score, output_language=output_language)
+            if mode == "per_job":
+                job = db.get(Job, matching.job_id)
+                if job is None:
+                    raise ValueError("Matching context not found")
+                job_data = merge_jobs([job]).data
+                score = matching.score
+            else:
+                group_jobs = [db.get(Job, item.job_id) for item in matchings]
+                if any(job is None for job in group_jobs):
+                    raise ValueError("Matching context not found")
+                job_data = merge_jobs(group_jobs).data
+                scores = [item.score for item in matchings]
+                score = round(sum(scores) / len(scores)) if all(v is not None for v in scores) else None
+            tailored = await build_tailored_cv(profile, job_data, match_score=score, output_language=output_language)
             record = TailoredCVRecord(
                 matching_id=matching.id,
                 request_id=request_id,
@@ -81,8 +79,8 @@ async def _run_cv_tailoring(
             )
             db.add(record)
             db.flush()
-            blob_path = build_blob_path(user_id, record.id, suggest_filename(tailored))
-            upload_markdown(blob_path, render_tailored_cv_markdown(tailored))
+            blob_path = build_blob_path(user_id, record.id, suggest_filename(tailored, profile))
+            upload_markdown(blob_path, render_tailored_cv_markdown(tailored, profile))
             uploaded_blob_paths.append(blob_path)
             record.blob_path = blob_path
             records.append(record)
@@ -94,7 +92,7 @@ async def _run_cv_tailoring(
         if request:
             request.status = "completed"
         db.commit()
-    except Exception:  # noqa: BLE001 — surface via polled status
+    except Exception as failure:  # noqa: BLE001 — surface via polled status
         logger.exception("CV tailoring failed", extra={"processing_job_id": proc_job_id})
         db.rollback()
         for blob_path in uploaded_blob_paths:
@@ -102,14 +100,19 @@ async def _run_cv_tailoring(
                 delete_blob(blob_path)
             except Exception:  # noqa: BLE001 - original processing failure remains authoritative
                 logger.warning("CV blob cleanup failed", extra={"processing_job_id": proc_job_id})
+        message = (
+            "CV validation failed: the generated content was not supported by the profile and job"
+            if isinstance(failure, GroundingError)
+            else "CV generation failed"
+        )
         proc_job = db.get(ProcessingJob, proc_job_id)
         if proc_job is not None:
             proc_job.status = ProcessingJobStatus.FAILED
-            proc_job.error = "CV generation failed"
+            proc_job.error = message
             request = db.get(CVRequest, request_id)
             if request:
                 request.status = "failed"
-                request.error = "CV generation failed"
+                request.error = message
             db.commit()
     finally:
         db.close()
@@ -152,7 +155,11 @@ def list_cvs(current_user: User = Depends(get_current_user), db: Session = Depen
     cvs = (
         db.execute(
             select(TailoredCVRecord)
-            .where(TailoredCVRecord.user_id == current_user.id)
+            .where(
+                TailoredCVRecord.user_id == current_user.id,
+                TailoredCVRecord.kind == "cv",
+                TailoredCVRecord.status == "completed",
+            )
             .order_by(desc(TailoredCVRecord.created_at))
         )
         .scalars()
@@ -176,7 +183,7 @@ def list_cvs(current_user: User = Depends(get_current_user), db: Session = Depen
 @router.get("/cv/{tailored_cv_id}")
 def get_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     record = db.get(TailoredCVRecord, tailored_cv_id)
-    if not record or record.user_id != current_user.id:
+    if not record or record.user_id != current_user.id or record.kind != "cv":
         raise HTTPException(404, "Tailored CV not found")
     return {
         "id": record.id,
@@ -195,5 +202,4 @@ def delete_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user
     record = db.get(TailoredCVRecord, tailored_cv_id)
     if not record or record.user_id != current_user.id:
         raise HTTPException(404, "Tailored CV not found")
-    db.delete(record)
-    db.commit()
+    delete_tailored_record(db, record, delete_blob)

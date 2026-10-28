@@ -11,13 +11,14 @@ import profile.profile_builder_router as profile_builder_router
 import pytest
 from fastapi.testclient import TestClient
 
+import cover_letter.cover_letter_tailoring as cover_letter_tailoring
 import cv.cv_tailoring as cv_tailoring
 import cv.cv_tailoring_router as cv_tailoring_router
 import jobs.job_normalizer as job_normalizer
 import jobs.job_service as job_service
 import matching.job_matching_router as job_matching_router
 import matching.llm_matching as llm_matching
-import matching.matching_service as matching_service
+import tailoring.tailoring_router as tailoring_router
 from main import app
 from shared.database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
 
@@ -26,6 +27,7 @@ from shared.database import Base, TestingSessionLocal, get_db, get_testing_db, t
 def database():
     profile_builder_router.SessionLocal = TestingSessionLocal
     cv_tailoring_router.SessionLocal = TestingSessionLocal
+    tailoring_router.SessionLocal = TestingSessionLocal
     job_normalizer.SessionLocal = TestingSessionLocal
     job_matching_router.SessionLocal = TestingSessionLocal
     Base.metadata.create_all(testing_engine)
@@ -100,12 +102,19 @@ def structured_ai_provider(monkeypatch):
                 experience=[], education=[], certifications=[], skills=["Python"], summary_evidence=["Python Engineer"],
                 experience_evidence=[], education_evidence=[], certification_evidence=[],
             )
+        if operation == "cover_letter_tailoring":
+            return schema_model(
+                greeting="Dear Hiring Manager,",
+                paragraphs=["I am a Python engineer ready to contribute to your team."],
+                closing="Sincerely,",
+            )
         raise AssertionError(f"Unexpected operation: {operation}")
 
     monkeypatch.setattr(profile_builder, "call_openai_structured", fake_call)
     monkeypatch.setattr(job_service, "call_openai_structured", fake_call)
     monkeypatch.setattr(llm_matching, "call_openai_structured", fake_call)
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", fake_call)
+    monkeypatch.setattr(cover_letter_tailoring, "call_openai_structured", fake_call)
 
 
 @pytest.fixture
