@@ -1,19 +1,15 @@
 from dataclasses import asdict
-from io import BytesIO
 from profile.profile_builder import extract_profile
 from profile.profile_service import apply_profile_edits, merge_profile_values
-from zipfile import BadZipFile
 
-from docx import Document
-from docx.opc.exceptions import PackageNotFoundError
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from lxml.etree import XMLSyntaxError
 from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from auth.security import get_current_user
 from shared.database import SessionLocal, get_db
+from shared.document_text import DOCX_CONTENT_TYPE, DocumentTextError, extract_docx_text
 from shared.models import (
     ProcessingJobType,
     ProfileFileStatus,
@@ -33,7 +29,6 @@ from shared.processing_service import (
 
 router = APIRouter(prefix="", tags=["profile"])
 
-DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 SUPPORTED_PROFILE_CONTENT_TYPES = {
     "application/pdf",
     DOCX_CONTENT_TYPE,
@@ -54,17 +49,9 @@ class ProfileSessionCreate(BaseModel):
 
 def _extract_docx_text(content: bytes) -> str:
     try:
-        document = Document(BytesIO(content))
-    except (BadZipFile, KeyError, PackageNotFoundError, ValueError, XMLSyntaxError) as error:
-        raise HTTPException(422, "Invalid DOCX file") from error
-
-    paragraphs = [paragraph.text for paragraph in document.paragraphs if paragraph.text]
-    table_rows = [
-        "\t".join(cell.text for cell in row.cells)
-        for table in document.tables
-        for row in table.rows
-    ]
-    return "\n".join(paragraphs + table_rows)
+        return extract_docx_text(content)
+    except DocumentTextError as error:
+        raise HTTPException(422, str(error)) from error
 
 
 async def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) -> None:

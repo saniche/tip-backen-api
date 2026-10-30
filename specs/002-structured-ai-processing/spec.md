@@ -92,10 +92,10 @@ As a job seeker, I want a tailored CV generated from my profile, selected job, a
 - **FR-006**: The system MUST produce structured per-requirement assessments for matching that identify support, partial support, or absence and include a rationale grounded in the profile and job context.
 - **FR-007**: The system MUST derive matching scores and eligibility only from validated structured matching assessments.
 - **FR-008**: The system MUST produce a structured tailored-CV result from the selected profile, job, and match context before rendering or publishing the document.
-- **FR-009**: The system MUST ensure each tailored-CV statement is grounded in the selected profile and job context; it MUST NOT add unsupported experience, qualifications, skills, credentials, or achievements.
+- **FR-009**: The system MUST validate each tailored-CV experience's structured company and dates against its linked profile experience and validate experience descriptions, education, and certifications against their permitted sources. Experience titles are unrestricted. An optional one-sentence experience summary is prompted from that experience's available responsibility details but is not programmatically checked for grounding; if no responsibility details exist, omit its summary and descriptions. The overall summary and skills are also prompted to use supplied facts but are not programmatically checked for grounding. Unsupported claims in these free-text fields may therefore pass.
 - **FR-010**: The system MUST record a safe failed processing state when interpretation fails, is unavailable, exceeds its allowed processing time, or returns an invalid result.
 - **FR-011**: The system MUST retain the last successfully completed profile, job, match report, or tailored CV when a later processing attempt fails.
-- **FR-012**: The system MUST return safe, actionable failures to authorized users without exposing service credentials, raw provider responses, or personal data beyond the request context.
+- **FR-012**: The system MUST return actionable failures only to authorized users without exposing service credentials, raw provider responses, or personal data beyond the request context. CV validation failures may include rejected generated values and their expected profile values.
 - **FR-013**: The system MUST support downstream profile, matching, scoring, and document-generation actions using only validated structured outputs.
 - **FR-014**: The system MUST provide automated coverage for successful interpretation, invalid structured output, provider unavailability, and unsupported-fact prevention for each of the four processing activities.
 
@@ -114,7 +114,7 @@ As a job seeker, I want a tailored CV generated from my profile, selected job, a
 - **SC-001**: In a representative acceptance set of 50 resumes, at least 95% produce a valid profile result or a clearly failed processing result, with no malformed profile made available to users.
 - **SC-002**: In a representative acceptance set of 50 job postings, at least 95% produce a valid job result or a clearly failed processing result, with no malformed job made available for matching.
 - **SC-003**: 100% of accepted profile, job, matching, and tailored-CV results satisfy their defined canonical structure before downstream use.
-- **SC-004**: In acceptance tests containing deliberately unsupported candidate facts, 100% of tailored CVs omit the unsupported facts.
+- **SC-004**: In acceptance tests containing deliberately unsupported candidate facts in validated CV sections, 100% of tailored CVs omit the unsupported facts. Summary and skill claims are not covered by this check.
 - **SC-005**: At least 95% of completed profile, job, match, and tailored-CV processing requests expose a final outcome to the requesting user within 60 seconds under normal operating conditions.
 - **SC-006**: All defined provider-unavailability and invalid-output scenarios result in a safe failure state and preserve the user's last successful completed data.
 

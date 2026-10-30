@@ -39,7 +39,9 @@ _KIND_LABEL = {"cv": "CV", "cover_letter": "cover letter"}
 
 def _item_error(kind: str, exc: Exception) -> str:
     label = _KIND_LABEL.get(kind, "document")
-    if isinstance(exc, (GroundingError, CoverLetterGroundingError)):
+    if isinstance(exc, GroundingError):
+        return f"The generated {label} failed validation: {exc}"
+    if isinstance(exc, CoverLetterGroundingError):
         return f"The generated {label} contained content not supported by the profile and job"
     if isinstance(exc, StructuredProviderError):
         return f"The AI provider could not produce the {label}; try again"

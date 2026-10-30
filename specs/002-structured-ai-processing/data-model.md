@@ -61,9 +61,18 @@ The provider result adapts to `pipeline.cv_tailoring.TailoredCv` before renderin
 | Field | Rules |
 |-------|-------|
 | target role | Required string derived from selected job context |
-| summary | Required string grounded in profile, job, and match context |
-| experience, education, certifications | Required lists containing profile-supported statements |
-| skills | Required list drawn from profile or selected job context |
+| summary | Required string; the prompt requests grounding in the supplied context, but no programmatic evidence or content check is applied |
+| experience | Each generated entry identifies its source work experience by index. Company and dates must exactly match that entry, including missing values; the title is unrestricted. An optional one-sentence summary is prompted from the entry's `Summary` and `RealisationDescription` alongside its descriptions, but is not independently checked for factual grounding. Descriptions require evidence from the same entry. If neither source has responsibility details, the CV retains the experience header without a summary or descriptions. Company and date claims embedded in free-text titles or summaries are not independently validated. |
+| education, certifications | Required lists containing profile-supported statements |
+| skills | Required list; the prompt requests skills from the profile's explicit technical or soft skills, but the skills are not programmatically checked for grounding |
+
+Validation failures include the rejected values and are returned to the authenticated request owner
+through the processing job and, for `/tailoring`, the affected document. These details may contain
+profile or generated text.
+
+The CV model receives profile and job context as JSON. Experience evidence must match a source value;
+an exact Python-style `field='value'` representation is also accepted when both the field and value
+match the linked profile experience. Altered or mismatched evidence remains rejected.
 
 ## State Transitions
 

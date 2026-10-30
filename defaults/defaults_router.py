@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
@@ -12,9 +12,17 @@ from defaults.defaults_service import (
     upsert_default_document,
 )
 from shared.database import get_db
+from shared.document_text import (
+    DocumentTextError,
+    detect_document_type,
+    extract_document_text,
+    safe_filename,
+)
 from shared.models import User, UserDocument
 
 router = APIRouter(tags=["defaults"])
+
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 
 class DefaultDocumentIn(BaseModel):
@@ -40,6 +48,24 @@ def _serialize(document: UserDocument) -> dict:
     }
 
 
+async def _text_from_upload(file: UploadFile) -> str:
+    document_type = detect_document_type(file.content_type, file.filename)
+    if document_type is None:
+        raise HTTPException(422, "Unsupported file type: upload a .docx, .md or .txt file")
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(422, "File exceeds maximum size")
+    try:
+        text = extract_document_text(content, document_type, preserve_structure=True).strip()
+    except DocumentTextError as error:
+        raise HTTPException(422, str(error)) from error
+    if not text:
+        raise HTTPException(422, "No text could be extracted from the file")
+    if len(text) > MAX_CONTENT_CHARS:
+        raise HTTPException(422, f"Document is too long (maximum {MAX_CONTENT_CHARS:,} characters)")
+    return text
+
+
 def _register(path: str, kind: str, label: str) -> None:
     @router.get(path, name=f"get_default_{kind}")
     def read(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -53,6 +79,15 @@ def _register(path: str, kind: str, label: str) -> None:
         payload: DefaultDocumentIn, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
     ):
         return _serialize(upsert_default_document(db, current_user.id, kind, payload.content, payload.filename))
+
+    @router.post(f"{path}/file", name=f"upload_default_{kind}")
+    async def upload(
+        file: UploadFile = File(...),
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db),
+    ):
+        text = await _text_from_upload(file)
+        return _serialize(upsert_default_document(db, current_user.id, kind, text, safe_filename(file.filename)))
 
     @router.delete(path, status_code=204, name=f"delete_default_{kind}")
     def remove(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):

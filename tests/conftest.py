@@ -99,8 +99,8 @@ def structured_ai_provider(monkeypatch):
         if operation == "cv_tailoring":
             return schema_model(
                 target_role="Python Engineer", summary="Python Engineer",
-                experience=[], education=[], certifications=[], skills=["Python"], summary_evidence=["Python Engineer"],
-                experience_evidence=[], education_evidence=[], certification_evidence=[],
+                experience=[], education=[], certifications=[], skills=["Python"],
+                education_evidence=[], certification_evidence=[],
             )
         if operation == "cover_letter_tailoring":
             return schema_model(

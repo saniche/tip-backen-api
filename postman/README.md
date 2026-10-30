@@ -58,6 +58,11 @@ folder is a prerequisite that supplies a real job for successful matching tests.
 return `202 Accepted`; the collection polls the matching processing job before requesting report
 results.
 
+Profile session, job normalization, matching, and CV tailoring status requests poll immediately, then
+wait five seconds between up to 30 retries. This allows up to 2 minutes 30 seconds of waiting, plus
+HTTP request time. If processing fails or is still in progress after the final retry, the collection
+reports a failed test and clears the retry counter.
+
 ## Interests folder
 
 The `Interests` folder runs after job normalization completes and covers interest management for the
@@ -104,4 +109,3 @@ job (see `specs/005-application-journal/contracts/api-v1.md`):
   create and delete their own journal entry for the same shared job.
 - **Cleanup**: In the `Cleanup` folder, `DELETE /applications/{id}` verifies removal with `204`, missing
   entry removal with `404`, and confirms the underlying normalized job remains retrievable.
-

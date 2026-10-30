@@ -101,7 +101,7 @@ async def _run_cv_tailoring(
             except Exception:  # noqa: BLE001 - original processing failure remains authoritative
                 logger.warning("CV blob cleanup failed", extra={"processing_job_id": proc_job_id})
         message = (
-            "CV validation failed: the generated content was not supported by the profile and job"
+            f"CV validation failed: {failure}"
             if isinstance(failure, GroundingError)
             else "CV generation failed"
         )

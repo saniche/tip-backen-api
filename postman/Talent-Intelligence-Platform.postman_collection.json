@@ -271,6 +271,7 @@
                 "exec": [
                   "pm.test('creates a profile session', () => {",
                   "  pm.response.to.have.status(201);",
+                  "  pm.collectionVariables.unset('profile_poll_tries');",
                   "  pm.collectionVariables.set('profile_session_id', pm.response.json().id);",
                   "});"
                 ]
@@ -473,7 +474,32 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const MAX_TRIES = 10;\nconst DELAY_MS = 5000;\n\nconst ok = pm.response.code === 200;\nconst body = ok ? pm.response.json() : {};\nconst done = body.status === \"completed\";\nconst tries = Number(pm.collectionVariables.get(\"poll_tries\") || 0);\n\nif (ok && !done && tries < MAX_TRIES) {\n  // still processing: wait, then call the same request again\n  pm.collectionVariables.set(\"poll_tries\", tries + 1);\n  setTimeout(() => {}, DELAY_MS);\n  pm.execution.setNextRequest(pm.info.requestName);\n} else {\n  // finished, failed, or out of retries: reset and assert the final outcome\n  pm.collectionVariables.unset(\"poll_tries\");\n\n  pm.test(\"returns the owned session\", () => {\n    pm.response.to.have.status(200);\n    pm.expect(body.id).to.eql(pm.collectionVariables.get(\"profile_session_id\"));\n  });\n\n  pm.test(`session completed (after ${tries} retries)`, () => {\n    pm.expect(done, `last status was \"${body.status}\"`).to.be.true;\n  });\n}"
+                  "const MAX_RETRIES = 30;",
+                  "const DELAY_MS = 5000;",
+                  "const KEY = 'profile_poll_tries';",
+                  "const tries = Number(pm.collectionVariables.get(KEY) || 0);",
+                  "const ok = pm.response.code === 200;",
+                  "let body;",
+                  "if (ok) {",
+                  "  try { body = pm.response.json(); } catch (error) {",
+                  "    pm.test('profile status response is valid JSON', () => { throw error; });",
+                  "  }",
+                  "}",
+                  "const inProgress = body && ['created', 'processing'].includes(body.status);",
+                  "if (ok && inProgress && tries < MAX_RETRIES) {",
+                  "  pm.collectionVariables.set(KEY, tries + 1);",
+                  "  setTimeout(() => pm.execution.setNextRequest(pm.info.requestName), DELAY_MS);",
+                  "} else {",
+                  "  pm.collectionVariables.unset(KEY);",
+                  "  pm.test('returns the owned session', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body).to.be.an('object');",
+                  "    pm.expect(body.id).to.eql(pm.collectionVariables.get('profile_session_id'));",
+                  "  });",
+                  "  pm.test(`session completed (after ${tries} retries)`, () => {",
+                  "    pm.expect(body && body.status, (body && body.error) || `last status was \"${body && body.status}\"`).to.eql('completed');",
+                  "  });",
+                  "}"
                 ]
               }
             }
@@ -690,7 +716,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('creates the matching prerequisite job', () => {\n  pm.response.to.have.status(202);\n  const body = pm.response.json();\n  pm.expect(body.id).to.not.be.null;\n  pm.expect(body).to.have.property(\"title\");\n  pm.expect(body).to.have.property(\"status\");\n  pm.expect(body.status).to.eql('processing');\n  pm.collectionVariables.set('job_id', body.id);\n  pm.collectionVariables.set('job_processing_job_id', body.processing_job_id);\n});"
+                  "pm.test('creates the matching prerequisite job', () => {\n  pm.response.to.have.status(202);\n  const body = pm.response.json();\n  pm.expect(body.id).to.not.be.null;\n  pm.expect(body).to.have.property(\"title\");\n  pm.expect(body).to.have.property(\"status\");\n  pm.expect(body.status).to.eql('processing');\n  pm.collectionVariables.unset('job_normalization_poll_tries');\n  pm.collectionVariables.set('job_id', body.id);\n  pm.collectionVariables.set('job_processing_job_id', body.processing_job_id);\n});"
                 ]
               }
             },
@@ -746,7 +772,32 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const REQUEST_NAME = pm.info.requestName;\nconst MAX_TRIES = 15;\nconst DELAY_MS = 1000;\nconst KEY = 'job_normalization_poll_tries';\n\nconst ok = pm.response.code === 200;\nconst body = ok ? pm.response.json() : {};\nconst tries = Number(pm.collectionVariables.get(KEY) || 0);\nconst inProgress = ['pending', 'running'].includes(body.status);\n\nif (ok && inProgress && tries < MAX_TRIES) {\n  // still processing: wait, then poll again\n  pm.collectionVariables.set(KEY, tries + 1);\n  setTimeout(() => {}, DELAY_MS);\n  pm.execution.setNextRequest(REQUEST_NAME);\n} else {\n  // terminal state, error, or out of retries: reset and assert the outcome\n  pm.collectionVariables.unset(KEY);\n\n  pm.test('returns job processing status', () => {\n    pm.response.to.have.status(200);\n    pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);\n  });\n\n  pm.test(`normalization finished (after ${tries} retries)`, () => {\n    pm.expect(inProgress, `still \"${body.status}\" after ${MAX_TRIES} retries`).to.be.false;\n  });\n\n  if (body.status === 'failed') {\n    pm.test('normalization did not fail', () => {\n      pm.expect.fail(body.error || 'Job normalization failed');\n    });\n  }\n}"
+                  "const MAX_RETRIES = 30;",
+                  "const DELAY_MS = 5000;",
+                  "const KEY = 'job_normalization_poll_tries';",
+                  "const tries = Number(pm.collectionVariables.get(KEY) || 0);",
+                  "const ok = pm.response.code === 200;",
+                  "let body;",
+                  "if (ok) {",
+                  "  try { body = pm.response.json(); } catch (error) {",
+                  "    pm.test('job status response is valid JSON', () => { throw error; });",
+                  "  }",
+                  "}",
+                  "const inProgress = body && ['pending', 'running'].includes(body.status);",
+                  "if (ok && inProgress && tries < MAX_RETRIES) {",
+                  "  pm.collectionVariables.set(KEY, tries + 1);",
+                  "  setTimeout(() => pm.execution.setNextRequest(pm.info.requestName), DELAY_MS);",
+                  "} else {",
+                  "  pm.collectionVariables.unset(KEY);",
+                  "  pm.test('returns job processing status', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body).to.be.an('object');",
+                  "    pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);",
+                  "  });",
+                  "  pm.test(`normalization finished (after ${tries} retries)`, () => {",
+                  "    pm.expect(body && body.status, (body && body.error) || `last status was \"${body && body.status}\"`).to.eql('done');",
+                  "  });",
+                  "}"
                 ]
               }
             }
@@ -3610,6 +3661,7 @@
                   "  pm.response.to.have.status(202);",
                   "  const body = pm.response.json();",
                   "  pm.expect(body).to.have.all.keys('id', 'status', 'result_id', 'error');",
+                  "  pm.collectionVariables.unset('matching_poll_tries');",
                   "  pm.collectionVariables.set('matching_processing_job_id', body.id);",
                   "  pm.collectionVariables.set('report_id', body.result_id);",
                   "});"
@@ -3653,7 +3705,37 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const REQUEST_NAME = pm.info.requestName;\nconst MAX_TRIES = 15;\nconst DELAY_MS = 1000;\nconst KEY = 'matching_poll_tries';\n\nconst ok = pm.response.code === 200;\nconst body = ok ? pm.response.json() : {};\nconst tries = Number(pm.collectionVariables.get(KEY) || 0);\nconst inProgress = ['pending', 'running'].includes(body.status);\n\nif (ok && inProgress && tries < MAX_TRIES) {\n  // still processing: wait, then poll again\n  pm.collectionVariables.set(KEY, tries + 1);\n  setTimeout(() => {}, DELAY_MS);\n  pm.execution.setNextRequest(REQUEST_NAME);\n} else {\n  // terminal state, error, or out of retries: reset and assert the outcome\n  pm.collectionVariables.unset(KEY);\n\n  pm.test('returns matching processing status', () => {\n    pm.response.to.have.status(200);\n    pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);\n  });\n\n  pm.test(`processing finished (after ${tries} retries)`, () => {\n    pm.expect(inProgress, `still \"${body.status}\" after ${MAX_TRIES} retries`).to.be.false;\n  });\n\n  if (body.status === 'done') {\n    pm.test('result matches the report', () => {\n      pm.expect(body.result_id).to.eql(pm.collectionVariables.get('report_id'));\n    });\n  } else if (body.status === 'failed') {\n    pm.test('processing did not fail', () => {\n      pm.expect.fail(body.error || 'Matching processing failed');\n    });\n  }\n}"
+                  "const MAX_RETRIES = 30;",
+                  "const DELAY_MS = 5000;",
+                  "const KEY = 'matching_poll_tries';",
+                  "const tries = Number(pm.collectionVariables.get(KEY) || 0);",
+                  "const ok = pm.response.code === 200;",
+                  "let body;",
+                  "if (ok) {",
+                  "  try { body = pm.response.json(); } catch (error) {",
+                  "    pm.test('matching status response is valid JSON', () => { throw error; });",
+                  "  }",
+                  "}",
+                  "const inProgress = body && ['pending', 'running'].includes(body.status);",
+                  "if (ok && inProgress && tries < MAX_RETRIES) {",
+                  "  pm.collectionVariables.set(KEY, tries + 1);",
+                  "  setTimeout(() => pm.execution.setNextRequest(pm.info.requestName), DELAY_MS);",
+                  "} else {",
+                  "  pm.collectionVariables.unset(KEY);",
+                  "  pm.test('returns matching processing status', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body).to.be.an('object');",
+                  "    pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);",
+                  "  });",
+                  "  pm.test(`processing finished (after ${tries} retries)`, () => {",
+                  "    pm.expect(body && body.status, (body && body.error) || `last status was \"${body && body.status}\"`).to.eql('done');",
+                  "  });",
+                  "  if (body && body.status === 'done') {",
+                  "    pm.test('result matches the report', () => {",
+                  "      pm.expect(body.result_id).to.eql(pm.collectionVariables.get('report_id'));",
+                  "    });",
+                  "  }",
+                  "}"
                 ]
               }
             }
@@ -3942,6 +4024,7 @@
                 "exec": [
                   "pm.test('accepts a CV tailoring request', () => {",
                   "  pm.response.to.have.status(202);",
+                  "  pm.collectionVariables.unset('cv_tailoring_poll_tries');",
                   "  pm.collectionVariables.set('cv_processing_job_id', pm.response.json().id);",
                   "});"
                 ]
@@ -4029,18 +4112,37 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const body = pm.response.json();",
-                  "pm.test('returns CV processing status', () => {",
-                  "  pm.response.to.have.status(200);",
-                  "  pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);",
-                  "});",
-                  "if (body.status === 'pending' || body.status === 'running') {",
-                  "  pm.execution.setNextRequest('Get CV tailoring processing job - success');",
-                  "} else if (body.status === 'done') {",
-                  "  pm.expect(body.result_id).to.be.a('string').and.not.empty;",
-                  "  pm.collectionVariables.set('tailored_cv_id', body.result_id);",
+                  "const MAX_RETRIES = 30;",
+                  "const DELAY_MS = 5000;",
+                  "const KEY = 'cv_tailoring_poll_tries';",
+                  "const tries = Number(pm.collectionVariables.get(KEY) || 0);",
+                  "const ok = pm.response.code === 200;",
+                  "let body;",
+                  "if (ok) {",
+                  "  try { body = pm.response.json(); } catch (error) {",
+                  "    pm.test('CV status response is valid JSON', () => { throw error; });",
+                  "  }",
+                  "}",
+                  "const inProgress = body && ['pending', 'running'].includes(body.status);",
+                  "if (ok && inProgress && tries < MAX_RETRIES) {",
+                  "  pm.collectionVariables.set(KEY, tries + 1);",
+                  "  setTimeout(() => pm.execution.setNextRequest(pm.info.requestName), DELAY_MS);",
                   "} else {",
-                  "  pm.expect.fail(body.error || 'CV tailoring failed');",
+                  "  pm.collectionVariables.unset(KEY);",
+                  "  pm.test('returns CV processing status', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(body).to.be.an('object');",
+                  "    pm.expect(['pending', 'running', 'done', 'failed']).to.include(body.status);",
+                  "  });",
+                  "  pm.test(`CV tailoring finished (after ${tries} retries)`, () => {",
+                  "    pm.expect(body && body.status, (body && body.error) || `last status was \"${body && body.status}\"`).to.eql('done');",
+                  "  });",
+                  "  if (ok && body && body.status === 'done') {",
+                  "    pm.test('returns the tailored CV ID', () => {",
+                  "      pm.expect(body.result_id).to.be.a('string').and.not.empty;",
+                  "      pm.collectionVariables.set('tailored_cv_id', body.result_id);",
+                  "    });",
+                  "  }",
                   "}"
                 ]
               }

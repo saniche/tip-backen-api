@@ -69,7 +69,7 @@ def test_validation_failures_are_reported_with_a_specific_message(client, monkey
     headers, user_id, matchings = _matches(client, "legacy-grounding@example.com")
 
     async def ungrounded(*args, **kwargs):
-        raise GroundingError("Tailored CV contains unsupported summary content: Google")
+        raise GroundingError("Tailored CV contains unsupported experience content: Google")
 
     monkeypatch.setattr(cv_tailoring_router, "build_tailored_cv", ungrounded)
     job = client.post(f"{API}/cv/tailor", headers=headers, json={"matching_id": matchings[0]}).json()
@@ -77,4 +77,4 @@ def test_validation_failures_are_reported_with_a_specific_message(client, monkey
 
     assert status["status"] == "failed"
     assert status["error"].startswith("CV validation failed")
-    assert "Google" not in status["error"]
+    assert "unsupported experience content: Google" in status["error"]
