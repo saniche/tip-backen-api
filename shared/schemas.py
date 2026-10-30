@@ -273,7 +273,6 @@ class MatchReportOut(BaseModel):
 
 
 class CvTailoringRequest(BaseModel):
-    matching_id: str | None = None
     matching_ids: list[str] = Field(default_factory=list)
     mode: str = "per_job"
     output_language: str = "English"
