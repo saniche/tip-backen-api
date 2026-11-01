@@ -3,10 +3,17 @@ from profile.profile_builder import extract_profile
 from profile.profile_service import apply_profile_edits, merge_profile_values
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
-from pydantic import BaseModel
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from api.openapi import error_responses
+from api.schemas.requests.profiles import ProfileSessionCreate, ProfileUpdate
+from api.schemas.responses.profiles import (
+    CurrentProfileResponse,
+    ProfileFileUploadResponse,
+    ProfileSessionDetailResponse,
+    ProfileSessionResponse,
+)
 from auth.security import get_current_user
 from shared.database import SessionLocal, get_db
 from shared.document_text import DOCX_CONTENT_TYPE, DocumentTextError, extract_docx_text
@@ -27,7 +34,7 @@ from shared.processing_service import (
     start_processing_job,
 )
 
-router = APIRouter(prefix="", tags=["profile"])
+router = APIRouter(prefix="")
 
 SUPPORTED_PROFILE_CONTENT_TYPES = {
     "application/pdf",
@@ -36,15 +43,6 @@ SUPPORTED_PROFILE_CONTENT_TYPES = {
     "text/markdown",
     "text/x-markdown",
 }
-
-
-class ProfileUpdate(BaseModel):
-    data: dict
-    output_language: str = "English"
-
-
-class ProfileSessionCreate(BaseModel):
-    output_language: str = "English"
 
 
 def _extract_docx_text(content: bytes) -> str:
@@ -93,9 +91,14 @@ async def _run_profile_session(session_id: str, user_id: str, processing_job_id:
             fragments.append({"data": fragment_data, "evidence_type": "extracted"})
             file.status = ProfileFileStatus.COMPLETED
         previous = (
-            db.execute(select(UserProfile).where(UserProfile.user_id == user_id,
-            UserProfile.deleted_at.is_(None),
-        ).order_by(desc(UserProfile.created_at)))
+            db.execute(
+                select(UserProfile)
+                .where(
+                    UserProfile.user_id == user_id,
+                    UserProfile.deleted_at.is_(None),
+                )
+                .order_by(desc(UserProfile.created_at))
+            )
             .scalars()
             .first()
         )
@@ -123,7 +126,15 @@ async def _run_profile_session(session_id: str, user_id: str, processing_job_id:
         db.close()
 
 
-@router.post("/profile/sessions", status_code=201)
+@router.post(
+    "/profile/sessions",
+    response_model=ProfileSessionResponse,
+    status_code=201,
+    summary="Create a profile session",
+    description="Creates an authenticated user's profile-building session with the selected output language.",
+    tags=["Profile Processing"],
+    responses=error_responses(401, 422, 500),
+)
 def create_profile_session(
     payload: ProfileSessionCreate = ProfileSessionCreate(),
     current_user: User = Depends(get_current_user),
@@ -136,7 +147,15 @@ def create_profile_session(
     return {"id": session.id, "status": session.status.value, "output_language": session.output_language}
 
 
-@router.post("/profile/sessions/{session_id}/files", status_code=202)
+@router.post(
+    "/profile/sessions/{session_id}/files",
+    response_model=ProfileFileUploadResponse,
+    status_code=202,
+    summary="Upload a profile source file",
+    description="Accepts a supported profile document up to 10 MiB and starts background extraction.",
+    tags=["Profile Processing"],
+    responses=error_responses(401, 404, 422, 500, 502, 503),
+)
 async def upload_profile_file(
     session_id: str,
     background_tasks: BackgroundTasks,
@@ -153,8 +172,8 @@ async def upload_profile_file(
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(422, "File exceeds maximum size")
-    text_content = _extract_docx_text(content) if content_type == DOCX_CONTENT_TYPE else content.decode(
-        "utf-8", errors="replace"
+    text_content = (
+        _extract_docx_text(content) if content_type == DOCX_CONTENT_TYPE else content.decode("utf-8", errors="replace")
     )
     user_file = UserFile(
         user_id=current_user.id,
@@ -170,7 +189,15 @@ async def upload_profile_file(
     return {"file_id": user_file.id, "processing_job_id": processing_job.id, "status": processing_job.status.value}
 
 
-@router.get("/profile/sessions/{session_id}")
+@router.get(
+    "/profile/sessions/{session_id}",
+    response_model=ProfileSessionDetailResponse,
+    status_code=200,
+    summary="Get a profile session",
+    description="Returns the session state and processing state for each uploaded file.",
+    tags=["Profile Processing"],
+    responses=error_responses(401, 404, 500),
+)
 def get_profile_session(session_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     session = db.get(ProfileSession, session_id)
     if not session or session.user_id != current_user.id:
@@ -184,13 +211,24 @@ def get_profile_session(session_id: str, current_user: User = Depends(get_curren
     }
 
 
-@router.get("/profile")
+@router.get(
+    "/profile",
+    response_model=CurrentProfileResponse,
+    status_code=200,
+    summary="Get the current profile",
+    description="Returns the authenticated user's latest active profile.",
+    tags=["Profiles"],
+    responses=error_responses(401, 404, 500),
+)
 def get_profile(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = (
         db.execute(
-            select(UserProfile).where(UserProfile.user_id == current_user.id,
-            UserProfile.deleted_at.is_(None),
-        ).order_by(desc(UserProfile.created_at))
+            select(UserProfile)
+            .where(
+                UserProfile.user_id == current_user.id,
+                UserProfile.deleted_at.is_(None),
+            )
+            .order_by(desc(UserProfile.created_at))
         )
         .scalars()
         .first()
@@ -205,15 +243,26 @@ def get_profile(current_user: User = Depends(get_current_user), db: Session = De
     }
 
 
-@router.put("/profile")
+@router.put(
+    "/profile",
+    response_model=CurrentProfileResponse,
+    status_code=200,
+    summary="Replace current profile data",
+    description="Creates or updates the authenticated user's latest active profile.",
+    tags=["Profiles"],
+    responses=error_responses(401, 422, 500),
+)
 def update_profile(
     payload: ProfileUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
     profile = (
         db.execute(
-            select(UserProfile).where(UserProfile.user_id == current_user.id,
-            UserProfile.deleted_at.is_(None),
-        ).order_by(desc(UserProfile.created_at))
+            select(UserProfile)
+            .where(
+                UserProfile.user_id == current_user.id,
+                UserProfile.deleted_at.is_(None),
+            )
+            .order_by(desc(UserProfile.created_at))
         )
         .scalars()
         .first()

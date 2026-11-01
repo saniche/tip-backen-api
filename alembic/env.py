@@ -2,6 +2,7 @@ import os
 
 from sqlalchemy import engine_from_config, pool
 
+import db.models  # noqa: F401
 import shared.config as config  # noqa: F401
 from alembic import context
 from shared.database import Base

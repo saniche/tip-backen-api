@@ -5,6 +5,10 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from api.openapi import error_responses
+from api.schemas.requests.tailoring import CvTailoringRequest
+from api.schemas.responses.processing import ProcessingJobResponse
+from api.schemas.responses.tailoring import CvMetadataResponse
 from auth.security import get_current_user
 from cv.cv_service import delete_tailored_record, validate_cv_selection
 from cv.cv_tailoring import GroundingError, build_tailored_cv
@@ -22,10 +26,9 @@ from shared.models import (
     User,
     UserProfile,
 )
-from shared.schemas import CvTailoringRequest, ProcessingJobOut
 from shared.storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
 
-router = APIRouter(tags=["cv-tailoring"])
+router = APIRouter()
 logger = logging.getLogger("tip-api")
 
 
@@ -100,11 +103,7 @@ async def _run_cv_tailoring(
                 delete_blob(blob_path)
             except Exception:  # noqa: BLE001 - original processing failure remains authoritative
                 logger.warning("CV blob cleanup failed", extra={"processing_job_id": proc_job_id})
-        message = (
-            f"CV validation failed: {failure}"
-            if isinstance(failure, GroundingError)
-            else "CV generation failed"
-        )
+        message = f"CV validation failed: {failure}" if isinstance(failure, GroundingError) else "CV generation failed"
         proc_job = db.get(ProcessingJob, proc_job_id)
         if proc_job is not None:
             proc_job.status = ProcessingJobStatus.FAILED
@@ -118,7 +117,15 @@ async def _run_cv_tailoring(
         db.close()
 
 
-@router.post("/cv/tailor", status_code=202, response_model=ProcessingJobOut)
+@router.post(
+    "/cv/tailor",
+    status_code=202,
+    response_model=ProcessingJobResponse,
+    summary="Start CV tailoring",
+    description="Queues a tailored CV for the supplied matching results and returns a processing-job identifier.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 404, 422, 500, 502, 503),
+)
 def tailor_cv(
     payload: CvTailoringRequest,
     background_tasks: BackgroundTasks,
@@ -147,10 +154,18 @@ def tailor_cv(
         cv_request.id,
     )
 
-    return ProcessingJobOut(id=proc_job.id, status=proc_job.status.value, result_id=proc_job.result_id)
+    return ProcessingJobResponse(id=proc_job.id, status=proc_job.status, result_id=proc_job.result_id)
 
 
-@router.get("/cv")
+@router.get(
+    "/cv",
+    response_model=list[CvMetadataResponse],
+    status_code=200,
+    summary="List tailored CVs",
+    description="Lists completed tailored CVs owned by the authenticated user.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 500, 503),
+)
 def list_cvs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     cvs = (
         db.execute(
@@ -180,7 +195,15 @@ def list_cvs(current_user: User = Depends(get_current_user), db: Session = Depen
     ]
 
 
-@router.get("/cv/{tailored_cv_id}")
+@router.get(
+    "/cv/{tailored_cv_id}",
+    response_model=CvMetadataResponse,
+    status_code=200,
+    summary="Get a tailored CV",
+    description="Returns metadata and a temporary download URL for an owned completed CV.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 404, 500, 503),
+)
 def get_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     record = db.get(TailoredCVRecord, tailored_cv_id)
     if not record or record.user_id != current_user.id or record.kind != "cv":
@@ -197,7 +220,14 @@ def get_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user), 
     }
 
 
-@router.delete("/cv/{tailored_cv_id}", status_code=204)
+@router.delete(
+    "/cv/{tailored_cv_id}",
+    status_code=204,
+    summary="Delete a tailored CV",
+    description="Deletes an owned tailored CV and its stored document.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 404, 500, 503),
+)
 def delete_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     record = db.get(TailoredCVRecord, tailored_cv_id)
     if not record or record.user_id != current_user.id:

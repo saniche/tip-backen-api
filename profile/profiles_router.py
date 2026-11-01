@@ -10,12 +10,14 @@ from profile.profile_service import (
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from api.openapi import error_responses
+from api.schemas.requests.profiles import ProfilePatch
+from api.schemas.responses.profiles import UserProfileDetailResponse, UserProfileSummaryResponse
 from auth.security import get_current_user
 from shared.database import get_db
 from shared.models import User, UserProfile
-from shared.schemas import ProfilePatch
 
-router = APIRouter(tags=["profiles"])
+router = APIRouter()
 
 
 def _serialize(profile: UserProfile, *, is_default: bool, include_data: bool) -> dict:
@@ -32,13 +34,29 @@ def _serialize(profile: UserProfile, *, is_default: bool, include_data: bool) ->
     return payload
 
 
-@router.get("/profiles")
+@router.get(
+    "/profiles",
+    response_model=list[UserProfileSummaryResponse],
+    status_code=200,
+    summary="List profiles",
+    description="Lists active profile summaries for the authenticated user, with the default profile first.",
+    tags=["Profiles"],
+    responses=error_responses(401, 500),
+)
 def list_user_profiles(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profiles = list_profiles(db, current_user.id)
     return [_serialize(item, is_default=index == 0, include_data=False) for index, item in enumerate(profiles)]
 
 
-@router.get("/profiles/{profile_id}")
+@router.get(
+    "/profiles/{profile_id}",
+    response_model=UserProfileDetailResponse,
+    status_code=200,
+    summary="Get a profile",
+    description="Returns an active profile owned by the authenticated user.",
+    tags=["Profiles"],
+    responses=error_responses(401, 404, 500),
+)
 def get_user_profile(profile_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = get_owned_profile(db, current_user.id, profile_id)
     if profile is None:
@@ -47,7 +65,15 @@ def get_user_profile(profile_id: str, current_user: User = Depends(get_current_u
     return _serialize(profile, is_default=profile.id == default_id, include_data=True)
 
 
-@router.patch("/profiles/{profile_id}")
+@router.patch(
+    "/profiles/{profile_id}",
+    response_model=UserProfileDetailResponse,
+    status_code=200,
+    summary="Update a profile",
+    description="Partially updates an active profile owned by the authenticated user.",
+    tags=["Profiles"],
+    responses=error_responses(401, 404, 422, 500),
+)
 def update_user_profile(
     profile_id: str,
     payload: ProfilePatch,
@@ -64,7 +90,14 @@ def update_user_profile(
     return _serialize(profile, is_default=profile.id == default_id, include_data=True)
 
 
-@router.delete("/profiles/{profile_id}", status_code=204)
+@router.delete(
+    "/profiles/{profile_id}",
+    status_code=204,
+    summary="Delete a profile",
+    description="Soft-deletes an active profile owned by the authenticated user.",
+    tags=["Profiles"],
+    responses=error_responses(401, 404, 500),
+)
 def delete_user_profile(profile_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     profile = get_owned_profile(db, current_user.id, profile_id)
     if profile is None:

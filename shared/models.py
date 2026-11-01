@@ -1,331 +1,47 @@
-"""
-ORM models.
-
-Design notes (see conversation for full rationale):
-- Job is global/deduplicated by url — NOT scoped by user. Multiple users can match against the
-  same posting without re-extracting it.
-- UserProfile is append-only (one row per rebuild, not overwritten) so a JobMatching row can point
-  at the exact profile version it was scored against, even after the profile changes later.
-- ProcessingJob tracks the two slow, backgrounded operations (profile build, CV tailoring) so the
-  API can return 202 + a job id immediately and let the client poll for completion.
-"""
-
-import enum
-import uuid
-from datetime import date, datetime, timezone
-
-from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
-
-from shared.database import Base
-
-
-def _uuid() -> str:
-    return str(uuid.uuid4())
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True)
-    hashed_password: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    role: Mapped[str] = mapped_column(String, default="user")
-
-
-class ProfileSessionStatus(str, enum.Enum):
-    CREATED = "created"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class ProfileFileStatus(str, enum.Enum):
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class ProfileSession(Base):
-    __tablename__ = "profile_sessions"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    status: Mapped[ProfileSessionStatus] = mapped_column(
-        Enum(ProfileSessionStatus), default=ProfileSessionStatus.CREATED
-    )
-    output_language: Mapped[str] = mapped_column(String, default="English", server_default="English")
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
-
-
-class UserFile(Base):
-    __tablename__ = "user_files"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    session_id: Mapped[str] = mapped_column(String, ForeignKey("profile_sessions.id"), index=True)
-    filename: Mapped[str] = mapped_column(String)
-    content_type: Mapped[str] = mapped_column(String)
-    content: Mapped[str] = mapped_column(Text)
-    status: Mapped[ProfileFileStatus] = mapped_column(Enum(ProfileFileStatus), default=ProfileFileStatus.PENDING)
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
-class ProfileFragment(Base):
-    __tablename__ = "profile_fragments"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    file_id: Mapped[str] = mapped_column(String, ForeignKey("user_files.id"), index=True)
-    data: Mapped[dict] = mapped_column(JSON, default=dict)
-    evidence_type: Mapped[str] = mapped_column(String, default="extracted")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
-class Job(Base):
-    """Global, deduplicated by url. Not scoped by user."""
-
-    __tablename__ = "jobs"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    url: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
-    title: Mapped[str] = mapped_column(String)
-    company: Mapped[str | None] = mapped_column(String, nullable=True)
-    location: Mapped[str | None] = mapped_column(String, nullable=True)
-    salary: Mapped[str | None] = mapped_column(String, nullable=True)
-    source: Mapped[str | None] = mapped_column(String, nullable=True)
-    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    posting_date: Mapped[str | None] = mapped_column(String, nullable=True)
-    key_responsibilities: Mapped[list] = mapped_column(JSON, default=list)
-    required: Mapped[dict | list] = mapped_column(JSON, default=dict)
-    desirable: Mapped[dict | list] = mapped_column(JSON, default=dict)
-    tools_and_technologies: Mapped[list] = mapped_column(JSON, default=list)
-    additionals: Mapped[list] = mapped_column(JSON, default=list)
-    status: Mapped[str] = mapped_column(String, default="completed")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    submitter_id: Mapped[str | None] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
-
-
-class JobInterest(Base):
-    __tablename__ = "job_interests"
-    __table_args__ = (
-        UniqueConstraint("user_id", "job_id", name="uq_job_interest_user_job"),
-        Index("ix_job_interests_user_created", "user_id", "created_at", "id"),
-    )
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
-class ApplicationStatus(str, enum.Enum):
-    NOT_STARTED = "NotStarted"
-    REGISTERED = "Registered"
-    APPLIED = "Applied"
-    CONTACTED = "Contacted"
-    SCREENING = "Screening"
-    INTERVIEW = "Interview"
-    ON_HOLD = "OnHold"
-    CLOSED = "Closed"
-    REJECTED = "Rejected"
-    OFFERED = "Offered"
-    ACCEPTED = "Accepted"
-    
-
-
-def _application_status_type() -> Enum:
-    return Enum(
-        ApplicationStatus,
-        name="applicationstatus",
-        native_enum=False,
-        create_constraint=True,
-        length=20,
-        values_callable=lambda statuses: [status.value for status in statuses],
-    )
-
-
-class ApplicationJournal(Base):
-    __tablename__ = "application_journals"
-    __table_args__ = (
-        UniqueConstraint("user_id", "job_id", name="uq_application_journal_user_job"),
-        Index("ix_application_journals_user_created", "user_id", "created_at", "id"),
-    )
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), nullable=False)
-    job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), nullable=False)
-    recruiter_info: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    contact_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    follow_up_date: Mapped[date | None] = mapped_column(Date, nullable=True)
-    work_authorization_discussed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[ApplicationStatus] = mapped_column(
-        _application_status_type(),
-        default=ApplicationStatus.NOT_STARTED,
-        server_default=ApplicationStatus.NOT_STARTED.value,
-        nullable=False,
-    )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
-
-
-class ApplicationStatusHistory(Base):
-    __tablename__ = "application_status_history"
-    __table_args__ = (Index("ix_application_status_history_entry_date", "application_id", "date", "id"),)
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    application_id: Mapped[str] = mapped_column(
-        String, ForeignKey("application_journals.id", ondelete="CASCADE"), nullable=False
-    )
-    date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)
-    note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status: Mapped[ApplicationStatus] = mapped_column(_application_status_type(), nullable=False)
-
-
-class UserProfile(Base):
-    """A user can have several profiles; the most recent non-deleted one is the default."""
-
-    __tablename__ = "user_profiles"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    data: Mapped[dict] = mapped_column(JSON)  # serialized UserProfile (see profile_builder.UserProfile)
-    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
-    output_language: Mapped[str] = mapped_column(String, default="English")
-    label: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, onupdate=_now)
-    # Soft delete: match reports and tailored documents keep a valid FK to the profile they used.
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
-class MatchReport(Base):
-    __tablename__ = "match_reports"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    profile_id: Mapped[str] = mapped_column(String, ForeignKey("user_profiles.id"), nullable=True)
-    status: Mapped[str] = mapped_column(String, default="completed")
-    rules_version: Mapped[str] = mapped_column(String, default="v1")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
-
-
-class JobMatchingResult(Base):
-    __tablename__ = "job_matchings"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    report_id: Mapped[str | None] = mapped_column(String, ForeignKey("match_reports.id"), index=True, nullable=True)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    job_id: Mapped[str] = mapped_column(String, ForeignKey("jobs.id"), index=True)
-    profile_id: Mapped[str] = mapped_column(String, ForeignKey("user_profiles.id"))
-    score: Mapped[int | None] = mapped_column(Float, nullable=True)
-    eligible: Mapped[bool] = mapped_column(Boolean)
-    scoring_status: Mapped[str] = mapped_column(String)  # "scored" | "unscorable"
-    breakdown: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    llm_match_output: Mapped[dict] = mapped_column(JSON)  # raw LlmMatchOutput, for audit/debugging
-    profile_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    job_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    rules_version: Mapped[str] = mapped_column(String, default="v1")
-    rank: Mapped[int | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
-class TailoredCVRecord(Base):
-    """A generated tailored document (table name kept for compatibility: it now holds CVs and cover letters)."""
-
-    __tablename__ = "tailored_cvs"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    request_id: Mapped[str | None] = mapped_column(String, ForeignKey("cv_requests.id"), nullable=True, index=True)
-    matching_id: Mapped[str | None] = mapped_column(
-        String, ForeignKey("job_matchings.id"), nullable=True, index=True
-    )  # legacy /cv/tailor only; the /tailoring flow works from job_ids
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    blob_path: Mapped[str] = mapped_column(String)  # key/path in Azure Blob Storage ("" while pending/failed)
-    mode: Mapped[str] = mapped_column(String, default="per_job")  # per_job | general (legacy: group_all)
-    status: Mapped[str] = mapped_column(String, default="completed")  # completed | failed
-    target_job_ids: Mapped[list] = mapped_column(JSON, default=list)
-    kind: Mapped[str] = mapped_column(String, default="cv", server_default="cv")  # cv | cover_letter
-    job_id: Mapped[str | None] = mapped_column(String, ForeignKey("jobs.id"), nullable=True)  # null for general
-    profile_id: Mapped[str | None] = mapped_column(String, ForeignKey("user_profiles.id"), nullable=True)
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    warning: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-
-class CVRequest(Base):
-    """One tailoring request (CV and optionally cover letter). Table name kept for compatibility."""
-
-    __tablename__ = "cv_requests"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    matching_ids: Mapped[list] = mapped_column(JSON, default=list)  # legacy /cv/tailor
-    mode: Mapped[str] = mapped_column(String, default="per_job")  # CV mode
-    status: Mapped[str] = mapped_column(String, default="completed")  # processing|completed|partial|failed
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    job_ids: Mapped[list] = mapped_column(JSON, default=list)
-    profile_id: Mapped[str | None] = mapped_column(String, ForeignKey("user_profiles.id"), nullable=True)
-    cover_letter_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
-    cover_letter_mode: Mapped[str | None] = mapped_column(String, nullable=True)
-    output_language: Mapped[str] = mapped_column(String, default="English", server_default="English")
-
-
-class UserDocument(Base):
-    """A user's default CV or default cover letter: at most one of each kind per user.
-
-    Optional style reference for tailoring (tone and voice only); the profile stays the source of facts.
-    """
-
-    __tablename__ = "user_documents"
-    __table_args__ = (UniqueConstraint("user_id", "kind", name="uq_user_document_user_kind"),)
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    kind: Mapped[str] = mapped_column(String)  # cv | cover_letter
-    content: Mapped[str] = mapped_column(Text)
-    filename: Mapped[str | None] = mapped_column(String, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
-
-
-class ProcessingJobType(str, enum.Enum):
-    PROFILE_BUILD = "profile_build"
-    JOB_NORMALIZE = "job_normalize"
-    MATCHING = "matching"
-    CV_TAILOR = "cv_tailor"
-
-
-class ProcessingJobStatus(str, enum.Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    DONE = "done"
-    FAILED = "failed"
-
-
-class ProcessingJob(Base):
-    """Tracks a backgrounded operation so the client can poll GET /jobs/{id} for status/result."""
-
-    __tablename__ = "processing_jobs"
-
-    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
-    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    job_type: Mapped[ProcessingJobType] = mapped_column(Enum(ProcessingJobType))
-    status: Mapped[ProcessingJobStatus] = mapped_column(Enum(ProcessingJobStatus), default=ProcessingJobStatus.PENDING)
-    result_id: Mapped[str | None] = mapped_column(
-        String, nullable=True
-    )  # points at UserProfile.id or TailoredCVRecord.id
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+from db.models import (
+    ApplicationJournal,
+    ApplicationStatusHistory,
+    CVRequest,
+    Job,
+    JobInterest,
+    JobMatchingResult,
+    MatchReport,
+    ProcessingJob,
+    ProfileFragment,
+    ProfileSession,
+    TailoredCVRecord,
+    User,
+    UserDocument,
+    UserFile,
+    UserProfile,
+)
+from shared.enums import (
+    ApplicationStatus,
+    ProcessingJobStatus,
+    ProcessingJobType,
+    ProfileFileStatus,
+    ProfileSessionStatus,
+)
+
+__all__ = [
+    "ApplicationJournal",
+    "ApplicationStatus",
+    "ApplicationStatusHistory",
+    "CVRequest",
+    "Job",
+    "JobInterest",
+    "JobMatchingResult",
+    "MatchReport",
+    "ProcessingJob",
+    "ProcessingJobStatus",
+    "ProcessingJobType",
+    "ProfileFileStatus",
+    "ProfileFragment",
+    "ProfileSession",
+    "ProfileSessionStatus",
+    "TailoredCVRecord",
+    "User",
+    "UserDocument",
+    "UserFile",
+    "UserProfile",
+]

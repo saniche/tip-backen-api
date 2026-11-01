@@ -7,6 +7,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from api.openapi import error_responses
+from api.schemas.requests.tailoring import TailoringRequestIn
+from api.schemas.responses.processing import ProcessingJobResponse
+from api.schemas.responses.tailoring import (
+    TailoringRequestDetailResponse,
+    TailoringRequestSummaryResponse,
+)
 from auth.security import get_current_user
 from cover_letter.cover_letter_tailoring import CoverLetterGroundingError
 from cv.cv_service import delete_tailored_record
@@ -26,11 +33,10 @@ from shared.models import (
     UserProfile,
 )
 from shared.processing_service import complete_processing_job, fail_processing_job
-from shared.schemas import ProcessingJobOut, TailoringRequestIn
 from shared.storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
 from tailoring.tailoring_service import generate_document, plan_work_items
 
-router = APIRouter(tags=["tailoring"])
+router = APIRouter()
 logger = logging.getLogger("tip-api")
 
 MAX_PARALLEL_LLM_CALLS = 3
@@ -214,7 +220,15 @@ def _request_documents(db: Session, request_id: str) -> list[TailoredCVRecord]:
     )
 
 
-@router.post("/tailoring", status_code=202, response_model=ProcessingJobOut)
+@router.post(
+    "/tailoring",
+    status_code=202,
+    response_model=ProcessingJobResponse,
+    summary="Start document tailoring",
+    description="Queues a tailored CV and optional cover letter for the selected jobs.",
+    tags=["Tailoring"],
+    responses=error_responses(400, 401, 404, 409, 422, 500, 502, 503),
+)
 def create_tailoring_request(
     payload: TailoringRequestIn,
     background_tasks: BackgroundTasks,
@@ -250,10 +264,18 @@ def create_tailoring_request(
     db.refresh(proc_job)
 
     background_tasks.add_task(_run_tailoring, proc_job.id, request.id)
-    return ProcessingJobOut(id=proc_job.id, status=proc_job.status.value, result_id=request.id)
+    return ProcessingJobResponse(id=proc_job.id, status=proc_job.status, result_id=request.id)
 
 
-@router.get("/tailoring/requests")
+@router.get(
+    "/tailoring/requests",
+    response_model=list[TailoringRequestSummaryResponse],
+    status_code=200,
+    summary="List tailoring requests",
+    description="Lists the authenticated user's tailoring requests, newest first.",
+    tags=["Tailoring"],
+    responses=error_responses(401, 500),
+)
 def list_tailoring_requests(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     requests = (
         db.execute(
@@ -267,7 +289,15 @@ def list_tailoring_requests(current_user: User = Depends(get_current_user), db: 
     return [_request_out(item) for item in requests]
 
 
-@router.get("/tailoring/requests/{request_id}")
+@router.get(
+    "/tailoring/requests/{request_id}",
+    response_model=TailoringRequestDetailResponse,
+    status_code=200,
+    summary="Get a tailoring request",
+    description="Returns an owned tailoring request and all generated document metadata.",
+    tags=["Tailoring"],
+    responses=error_responses(401, 404, 500),
+)
 def get_tailoring_request(
     request_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
@@ -275,7 +305,14 @@ def get_tailoring_request(
     return _request_out(request, _request_documents(db, request.id))
 
 
-@router.delete("/tailoring/requests/{request_id}", status_code=204)
+@router.delete(
+    "/tailoring/requests/{request_id}",
+    status_code=204,
+    summary="Delete a tailoring request",
+    description="Deletes a completed owned request and its generated documents.",
+    tags=["Tailoring"],
+    responses=error_responses(401, 404, 409, 500, 503),
+)
 def delete_tailoring_request(
     request_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
@@ -288,7 +325,14 @@ def delete_tailoring_request(
     db.commit()
 
 
-@router.delete("/tailoring/documents/{document_id}", status_code=204)
+@router.delete(
+    "/tailoring/documents/{document_id}",
+    status_code=204,
+    summary="Delete a tailored document",
+    description="Deletes an owned generated document from storage and the database.",
+    tags=["Tailoring"],
+    responses=error_responses(401, 404, 500, 503),
+)
 def delete_tailoring_document(
     document_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):

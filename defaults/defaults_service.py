@@ -3,12 +3,13 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from shared.limits import MAX_DEFAULT_DOCUMENT_CHARS
 from shared.models import UserDocument
 
 KIND_CV = "cv"
 KIND_COVER_LETTER = "cover_letter"
 KINDS = (KIND_CV, KIND_COVER_LETTER)
-MAX_CONTENT_CHARS = 50_000
+MAX_CONTENT_CHARS = MAX_DEFAULT_DOCUMENT_CHARS
 
 
 def get_default_document(db: Session, user_id: str, kind: str) -> UserDocument | None:
