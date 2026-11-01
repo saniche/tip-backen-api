@@ -25,6 +25,11 @@ from api.schemas.responses.health import HealthResponse, ReadinessResponse
 from shared.database import Base, engine
 from shared.errors import AppException, translate_exception
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+
 OPENAPI_TAGS = [
     {"name": "Auth", "description": "Account registration and token creation."},
     {"name": "Applications", "description": "Track job applications and status history."},

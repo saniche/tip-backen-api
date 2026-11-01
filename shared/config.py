@@ -20,6 +20,7 @@ OPENAI_MODELS = {
 	"job_normalizer": os.getenv("OPENAI_JOB_NORMALIZER_MODEL", "gpt-6-luna"),
 	"job_matching": os.getenv("OPENAI_JOB_MATCHING_MODEL", "gpt-6-luna"),
 	"cv_tailoring": os.getenv("OPENAI_CV_TAILORING_MODEL", "gpt-6-luna"),
+	"cover_letter_tailoring": os.getenv("OPENAI_COVER_LETTER_TAILORING_MODEL", "gpt-6-luna"),
 }
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "60"))
 

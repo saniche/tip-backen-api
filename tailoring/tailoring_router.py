@@ -101,10 +101,40 @@ async def _run_tailoring(proc_job_id: str, request_id: str) -> None:
         async def run(item):
             score = scores.get(item.jobs[0].id) if item.kind == KIND_CV and item.scope == "per_job" else None
             async with semaphore:
+                context = (
+                    proc_job_id,
+                    item.kind,
+                    item.scope,
+                    len(item.jobs),
+                )
+                logger.info(
+                    "Tailoring item started (processing_job_id=%s, kind=%s, scope=%s, target_count=%s)",
+                    *context,
+                )
                 try:
-                    return await generate_document(item, profile, language, style[item.kind], score)
+                    result = await generate_document(item, profile, language, style[item.kind], score)
+                    logger.info(
+                        "Tailoring item generated (processing_job_id=%s, kind=%s, scope=%s, target_count=%s)",
+                        *context,
+                    )
+                    return result
                 except Exception as exc:  # noqa: BLE001 - recorded per document, the others carry on
-                    logger.warning("Tailoring item failed", extra={"kind": item.kind, "error": type(exc).__name__})
+                    error_details = {
+                        "processing_job_id": proc_job_id,
+                        "kind": item.kind,
+                        "error_type": type(exc).__name__,
+                    }
+                    if isinstance(exc, StructuredProviderError):
+                        error_details["error_message"] = str(exc)
+                    safe_message = f": {exc}" if isinstance(exc, StructuredProviderError) else ""
+                    logger.error(
+                        "Tailoring item failed (processing_job_id=%s, kind=%s, scope=%s, target_count=%s, "
+                        "error_type=%s)%s",
+                        *context,
+                        type(exc).__name__,
+                        safe_message,
+                        extra=error_details,
+                    )
                     return exc
 
         results = await asyncio.gather(*(run(item) for item in items))
