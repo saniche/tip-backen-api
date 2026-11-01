@@ -3,7 +3,7 @@ from profile.profile_builder import UserProfile
 
 from cover_letter.cover_letter_tailoring import TailoredCoverLetter
 from cover_letter.cover_letter_writer import render_cover_letter_markdown, suggest_cover_letter_filename
-from cv.cv_tailoring import TailoredCv
+from cv.cv_tailoring import TailoredCv, TailoredExperience
 from cv.markdown_writer import render_tailored_cv_markdown, suggest_filename
 
 PROFILE = UserProfile(
@@ -36,6 +36,31 @@ def test_cv_has_deterministic_header_and_omits_empty_sections():
 
 def test_cv_without_profile_keeps_a_neutral_title():
     assert render_tailored_cv_markdown(TailoredCv(target_role="Engineer", summary="S")).startswith("# Tailored CV")
+
+
+def test_cv_experience_uses_two_line_company_and_role_header():
+    cv = TailoredCv(
+        target_role="Engineer",
+        experience=[
+            TailoredExperience(
+                company="Analytical Engines",
+                location="Ottawa, ON",
+                title="Software Engineer",
+                start_date="2020",
+                end_date="2023",
+                descriptions=["Delivered a working engine."],
+            )
+        ],
+    )
+
+    markdown = render_tailored_cv_markdown(cv, UserProfile(Name="Ada Example"))
+
+    assert (
+        "## Experience\n"
+        "**Analytical Engines**, Ottawa, ON\n"
+        "**Software Engineer, 2020 – 2023**\n"
+        "- Delivered a working engine."
+    ) in markdown
 
 
 def test_filenames_are_blob_safe_even_for_group_titles():

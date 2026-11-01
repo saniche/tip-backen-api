@@ -12,10 +12,21 @@ class GroundingError(ValueError):
 
 
 @dataclass
+class TailoredExperience:
+    company: str | None = None
+    location: str | None = None
+    title: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    summary: str | None = None
+    descriptions: list[str] = field(default_factory=list)
+
+
+@dataclass
 class TailoredCv:
     target_role: str = ""
     summary: str = ""
-    experience: list[str] = field(default_factory=list)
+    experience: list[TailoredExperience | str] = field(default_factory=list)
     education: list[str] = field(default_factory=list)
     certifications: list[str] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
@@ -158,6 +169,7 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
             "Summary": source.Summary,
             "Title": source.Title,
             "Company": source.Company,
+            "Location": source.Location,
             "StartDate": source.StartDate,
             "EndDate": source.EndDate,
         }
@@ -223,15 +235,21 @@ async def build_tailored_cv(
         except GroundingError as exc:
             last_error = exc
             continue
+        experiences = getattr(profile, "WorkExperiences", []) or []
         experience = []
         for item in output.experience:
-            dates = " - ".join(value for value in (item.start_date, item.end_date) if value)
-            header = " | ".join(value for value in (item.title, item.company, dates) if value)
-            if header:
-                experience.append(header)
-            if item.summary and item.summary.strip():
-                experience.append(item.summary)
-            experience.extend(item.descriptions)
+            source = experiences[item.profile_index]
+            experience.append(
+                TailoredExperience(
+                    company=item.company,
+                    location=source.Location,
+                    title=item.title,
+                    start_date=item.start_date,
+                    end_date=item.end_date,
+                    summary=item.summary,
+                    descriptions=item.descriptions,
+                )
+            )
         return TailoredCv(
             experience=experience,
             **output.model_dump(exclude={"experience", "education_evidence", "certification_evidence"}),

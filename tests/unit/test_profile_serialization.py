@@ -10,7 +10,8 @@ def test_dict_to_user_profile_preserves_new_profile_fields():
             "work_experiences": [
                 {
                     "Company": "Analytical Engines",
-                    "RealisationDescription": ["Delivered a working engine"],
+                    "lOcAtIoN": "Montreal",
+                    "rEaLiSaTiOnDeScRiPtIoN": ["Delivered a working engine"],
                 }
             ],
             "education": [
@@ -28,6 +29,7 @@ def test_dict_to_user_profile_preserves_new_profile_fields():
     assert profile.CoreCompetences == ["Technical leadership"]
     assert profile.AdditionalInformations == ["Available for relocation"]
     assert profile.WorkExperiences[0].RealisationDescription == ["Delivered a working engine"]
+    assert profile.WorkExperiences[0].Location == "Montreal"
     assert profile.Education[0].Location == "London"
     assert profile.Education[0].Completed is True
 

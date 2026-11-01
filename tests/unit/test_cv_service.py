@@ -5,7 +5,12 @@ import pytest
 
 import cv.cv_tailoring as cv_tailoring
 from cv.cv_service import validate_cv_selection
-from cv.cv_tailoring import CV_TAILORING_SYSTEM_PROMPT, TailoredCvOutput, _validate_grounded_content
+from cv.cv_tailoring import (
+    CV_TAILORING_SYSTEM_PROMPT,
+    TailoredCvOutput,
+    TailoredExperience,
+    _validate_grounded_content,
+)
 from matching.llm_matching import JobData
 
 
@@ -138,14 +143,16 @@ async def test_experience_optional_summary_uses_available_profile_details(monkey
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
     result = await cv_tailoring.build_tailored_cv(profile, JobData(title="Engineer"), None)
 
-    assert result.experience == ["Community Care Lead", "Supported patient care."]
+    assert result.experience == [    TailoredExperience(title="Community Care Lead", summary="Supported patient care.")]
     assert contexts[0]["profile"]["WorkExperiences"][0]["Summary"] == source_summary
     assert contexts[0]["profile"]["WorkExperiences"][0]["RealisationDescription"] == realisations
 
 
 @pytest.mark.asyncio
 async def test_experience_without_responsibility_details_keeps_header(monkeypatch):
-    profile = UserProfile(WorkExperiences=[WorkExperience(Title="Nurse", Company="Care Hospital")])
+    profile = UserProfile(
+        WorkExperiences=[WorkExperience(Title="Nurse", Company="Care Hospital", Location="Ottawa, ON")]
+    )
 
     async def provider(system, user, schema_model, **kwargs):
         return _output_with_experience(
@@ -161,7 +168,9 @@ async def test_experience_without_responsibility_details_keeps_header(monkeypatc
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
     result = await cv_tailoring.build_tailored_cv(profile, JobData(title="Engineer"), None)
 
-    assert result.experience == ["Community Care Lead | Care Hospital"]
+    assert result.experience == [
+        TailoredExperience(company="Care Hospital", location="Ottawa, ON", title="Community Care Lead")
+    ]
 
 
 def test_experience_summary_is_not_evidence_checked():
@@ -224,7 +233,7 @@ async def test_experience_uses_json_context_and_accepts_exact_field_representati
     result = await cv_tailoring.build_tailored_cv(profile, JobData(title="Engineer"), None)
 
     assert len(calls) == 1
-    assert source in result.experience
+    assert source in result.experience[0].descriptions
 
 
 @pytest.mark.parametrize(
@@ -343,8 +352,13 @@ async def test_experience_retry_receives_details_and_renders_valid_fields(monkey
     assert "Wrong Hospital" in calls[1]
     assert "company" in calls[1]
     assert result.experience == [
-        "Community Care Lead | Care Hospital | 2020 - 2023",
-        "Delivered patient care",
+        TailoredExperience(
+            company="Care Hospital",
+            title="Community Care Lead",
+            start_date="2020",
+            end_date="2023",
+            descriptions=["Delivered patient care"],
+        )
     ]
 
 

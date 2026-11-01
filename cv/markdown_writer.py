@@ -1,6 +1,8 @@
 import re
 import unicodedata
 
+from cv.cv_tailoring import TailoredExperience
+
 
 def slugify(text: str, fallback: str = "document", max_length: int = 60) -> str:
     """ASCII, filesystem/blob-safe slug (no slashes or spaces)."""
@@ -39,6 +41,42 @@ def _section(title: str, items: list[str], *, bullets: bool = True) -> list[str]
     return ["", f"## {title}", *body]
 
 
+def _experience_section(experiences: list[TailoredExperience | str]) -> list[str]:
+    content = []
+    for experience in experiences or []:
+        if isinstance(experience, str):
+            text = experience.strip()
+            block = [f"- {text}"] if text else []
+        else:
+            block = []
+            company = (experience.company or "").strip()
+            location = (experience.location or "").strip()
+            if company:
+                block.append(f"**{company}**" + (f", {location}" if location else ""))
+            elif location:
+                block.append(location)
+
+            title = (experience.title or "").strip()
+            dates = " – ".join(
+                value.strip() for value in (experience.start_date, experience.end_date) if value and value.strip()
+            )
+            role = ", ".join(value for value in (title, dates) if value)
+            if role:
+                block.append(f"**{role}**")
+
+            summary = (experience.summary or "").strip()
+            if summary:
+                block.append(summary)
+            block.extend(f"- {description.strip()}" for description in experience.descriptions if description.strip())
+
+        if block:
+            if content:
+                content.append("")
+            content.extend(block)
+
+    return ["", "## Experience", *content] if content else []
+
+
 def render_tailored_cv_markdown(cv, profile=None) -> str:
     name = (getattr(profile, "Name", "") or "").strip() if profile is not None else ""
     lines = [f"# {name or 'Tailored CV'}", *contact_lines(profile)]
@@ -48,10 +86,10 @@ def render_tailored_cv_markdown(cv, profile=None) -> str:
     summary = (getattr(cv, "summary", "") or "").strip()
     if summary:
         lines.extend(["", summary])
-    lines.extend(_section("Experience", getattr(cv, "experience", [])))
+    lines.extend(_section("Skills", getattr(cv, "skills", []), bullets=False))
+    lines.extend(_experience_section(getattr(cv, "experience", [])))
     lines.extend(_section("Education", getattr(cv, "education", [])))
     lines.extend(_section("Certifications", getattr(cv, "certifications", [])))
-    lines.extend(_section("Skills", getattr(cv, "skills", []), bullets=False))
     return "\n".join(lines) + "\n"
 
 

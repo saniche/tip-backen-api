@@ -229,6 +229,7 @@ def test_profile_processing_persists_complete_structured_profile(client, monkeyp
     assert data["work_experiences"] == [
         {
             "Company": "Analytical Engines",
+            "Location": None,
             "Title": "Engineer",
             "StartDate": None,
             "EndDate": None,
