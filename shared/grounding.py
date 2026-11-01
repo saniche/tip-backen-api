@@ -2,10 +2,8 @@
 
 Two checks with different strictness, because the two documents carry different risks:
 
-* ``unsupported_terms`` (strict, used for CV bullets): every meaningful word of a claim must come
-  from the cited evidence. Function words, inflections of evidence words and a few neutral
-  verbs are tolerated so natural phrasing no longer fails; numbers and role/seniority words
-  still have to be backed by the evidence.
+* ``unsupported_terms`` is a strict, same-language lexical comparison and is not suitable for
+  translated claims.
 * ``unsupported_facts`` (fact-focused, used for cover letters): prose is free, but anything that
   looks like a fact (number, proper noun, technology, seniority claim) must exist somewhere in
   the supplied profile/job context.

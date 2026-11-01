@@ -8,7 +8,7 @@ from cover_letter.cover_letter_tailoring import CoverLetterGroundingError
 from shared import storage
 from shared.database import TestingSessionLocal
 from shared.llm_structured import StructuredProviderError
-from shared.models import UserProfile
+from shared.models import CVRequest, UserProfile
 
 API = "/api/v1"
 
@@ -200,23 +200,43 @@ def test_when_everything_fails_the_processing_job_fails_with_a_useful_error(clie
 def test_cv_experience_failure_details_are_only_visible_to_owner(client, monkeypatch):
     headers, _, jobs = _setup(client, "experience-owner@example.com", job_count=1)
     client.put(
-        f"{API}/profile", headers=headers,
-        json={"data": {"WorkExperiences": [{
-            "Title": "Nurse", "Company": "Care Hospital", "StartDate": "2020", "EndDate": "2023",
-            "RealisationDescription": ["Delivered patient care"],
-        }]}},
+        f"{API}/profile",
+        headers=headers,
+        json={
+            "data": {
+                "WorkExperiences": [
+                    {
+                        "Title": "Nurse",
+                        "Company": "Care Hospital",
+                        "StartDate": "2020",
+                        "EndDate": "2023",
+                        "RealisationDescription": ["Delivered patient care"],
+                    }
+                ]
+            }
+        },
     )
 
     async def provider(system, user, schema_model, **kwargs):
         return schema_model(
-            target_role="Python Engineer", summary="Nurse", skills=[], education=[], certifications=[],
-            experience=[{
-                "profile_index": 0, "title": "Community Care Lead", "company": "Care Hospital",
-                "start_date": "2020", "end_date": "2024",
-                "descriptions": ["Delivered patient care"],
-                "description_evidence": [["Delivered patient care"]],
-            }],
-            education_evidence=[], certification_evidence=[],
+            target_role="Python Engineer",
+            summary="Nurse",
+            skills=[],
+            education=[],
+            certifications=[],
+            experience=[
+                {
+                    "profile_index": 0,
+                    "title": "Community Care Lead",
+                    "company": "Care Hospital",
+                    "start_date": "2020",
+                    "end_date": "2024",
+                    "descriptions": ["Delivered patient care"],
+                    "description_evidence": [["Delivered patient care"]],
+                }
+            ],
+            education_evidence=[],
+            certification_evidence=[],
         )
 
     monkeypatch.setattr(cv_module, "call_openai_structured", provider)
@@ -260,3 +280,21 @@ def test_requests_and_documents_are_private_to_their_owner(client):
     assert client.delete(f"{API}/tailoring/documents/{document_id}", headers=other).status_code == 404
     assert client.get(f"{API}/tailoring/requests", headers=other).json() == []
     assert [item["id"] for item in client.get(f"{API}/tailoring/requests", headers=headers).json()] == [detail["id"]]
+
+
+def test_list_tailoring_requests_excludes_requests_without_job_ids(client):
+    headers, user_id, jobs = _setup(client, "requests-list@example.com", job_count=1)
+    with TestingSessionLocal() as db:
+        db.add_all(
+            [
+                CVRequest(user_id=user_id, job_ids=jobs),
+                CVRequest(user_id=user_id, job_ids=[]),
+            ]
+        )
+        db.commit()
+
+    response = client.get(f"{API}/tailoring/requests", headers=headers)
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["job_ids"] == jobs

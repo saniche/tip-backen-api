@@ -4,7 +4,7 @@ from profile.profile_service import resolve_profile
 from profile.serialization import dict_to_user_profile
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from api.openapi import error_responses
@@ -280,7 +280,7 @@ def list_tailoring_requests(current_user: User = Depends(get_current_user), db: 
     requests = (
         db.execute(
             select(CVRequest)
-            .where(CVRequest.user_id == current_user.id, CVRequest.job_ids != [])
+            .where(CVRequest.user_id == current_user.id, func.json_array_length(CVRequest.job_ids) > 0)
             .order_by(desc(CVRequest.created_at))
         )
         .scalars()
