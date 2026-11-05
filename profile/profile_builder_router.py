@@ -240,6 +240,7 @@ def get_profile(current_user: User = Depends(get_current_user), db: Session = De
         "user_id": profile.user_id,
         "data": profile.data,
         "output_language": profile.output_language,
+        "label": profile.label,
     }
 
 
@@ -268,9 +269,9 @@ def update_profile(
         .first()
     )
     if profile is None:
-        profile = UserProfile(user_id=current_user.id, data={}, evidence={}, output_language=payload.output_language)
+        profile = UserProfile(user_id=current_user.id, data={}, evidence={}, output_language=payload.output_language, label=payload.label)
         db.add(profile)
-    apply_profile_edits(profile, payload.data, payload.output_language, None)
+    apply_profile_edits(profile, payload.data, payload.output_language, payload.label)
     db.commit()
     db.refresh(profile)
     return {
@@ -278,4 +279,5 @@ def update_profile(
         "user_id": profile.user_id,
         "data": profile.data,
         "output_language": profile.output_language,
+        "label": profile.label,
     }

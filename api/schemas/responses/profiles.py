@@ -61,6 +61,7 @@ class CurrentProfileResponse(BaseModel):
                 "user_id": "user-123",
                 "data": {"summary": "Python engineer"},
                 "output_language": "English",
+                "label": "Engineering profile",
             }
         },
     )
@@ -73,6 +74,7 @@ class CurrentProfileResponse(BaseModel):
         description="Structured profile information.", examples=[{"summary": "Python engineer"}]
     )
     output_language: str = Field(description="Language used for the profile.", examples=["English"])
+    label: str | None = Field(description="Optional profile display label.", examples=["Engineering profile"])
 
 
 class UserProfileSummaryResponse(BaseModel):

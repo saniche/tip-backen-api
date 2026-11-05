@@ -12,6 +12,9 @@ class ProfileUpdate(BaseModel):
     output_language: str = Field(
         default="English", description="Language used for profile content.", examples=["English"]
     )
+    label: str | None = Field(
+        default=None, max_length=100, description="Optional display label.", examples=["Engineering profile"]
+    )
 
 
 class ProfileSessionCreate(BaseModel):
