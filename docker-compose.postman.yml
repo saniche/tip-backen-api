@@ -5,7 +5,7 @@ x-app: &app
   environment: &app-environment
     DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/jobprocess
     REDIS_URL: redis://redis:6379/0
-    JWT_SECRET_KEY: postman-ci-only-secret-not-for-production
+    JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
     LOCAL_BLOB_DIRECTORY: /data/blob
