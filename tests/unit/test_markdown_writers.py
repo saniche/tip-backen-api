@@ -1,6 +1,6 @@
 from datetime import date
-from profile.profile_builder import UserProfile
 
+from candidate_profile.profile_builder import UserProfile
 from cover_letter.cover_letter_tailoring import TailoredCoverLetter
 from cover_letter.cover_letter_writer import render_cover_letter_markdown, suggest_cover_letter_filename
 from cv.cv_tailoring import TailoredCv, TailoredExperience

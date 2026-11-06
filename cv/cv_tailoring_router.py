@@ -1,5 +1,4 @@
 import logging
-from profile.serialization import dict_to_user_profile
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, select
@@ -11,6 +10,7 @@ from api.schemas.requests.tailoring import CvTailoringRequest
 from api.schemas.responses.processing import ProcessingJobResponse
 from api.schemas.responses.tailoring import CvMetadataResponse
 from auth.security import get_current_user
+from candidate_profile.serialization import dict_to_user_profile
 from cv.cv_service import delete_tailored_record, validate_cv_selection
 from cv.cv_tailoring import GroundingError, build_tailored_cv
 from cv.job_group import merge_jobs

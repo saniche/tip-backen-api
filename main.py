@@ -1,6 +1,4 @@
 import logging
-import profile.profile_builder_router as profile_builder_router
-import profile.profiles_router as profiles_router
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
@@ -11,6 +9,8 @@ from sqlalchemy import text
 
 import applications.router as applications_router
 import auth.router as auth_router
+import candidate_profile.profile_builder_router as profile_builder_router
+import candidate_profile.profiles_router as profiles_router
 import cv.cv_tailoring_router as cv_tailoring_router
 import cv.download_router as download_router
 import defaults.defaults_router as defaults_router

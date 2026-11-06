@@ -1,9 +1,9 @@
 import json
-from profile.profile_builder import Education, UserProfile, WorkExperience
 
 import pytest
 
 import cv.cv_tailoring as cv_tailoring
+from candidate_profile.profile_builder import Education, UserProfile, WorkExperience
 from cv.cv_service import validate_cv_selection
 from cv.cv_tailoring import (
     CV_TAILORING_SYSTEM_PROMPT,

@@ -1,6 +1,6 @@
-import profile.profile_builder as profile_builder
-
 import pytest
+
+import candidate_profile.profile_builder as profile_builder
 
 
 @pytest.mark.asyncio

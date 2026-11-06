@@ -1,7 +1,5 @@
 import asyncio
 import logging
-from profile.profile_service import resolve_profile
-from profile.serialization import dict_to_user_profile
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, func, select
@@ -16,6 +14,8 @@ from api.schemas.responses.tailoring import (
     TailoringRequestSummaryResponse,
 )
 from auth.security import get_current_user
+from candidate_profile.profile_service import resolve_profile
+from candidate_profile.serialization import dict_to_user_profile
 from cover_letter.cover_letter_tailoring import CoverLetterGroundingError
 from cv.cv_service import delete_tailored_record
 from cv.cv_tailoring import GroundingError

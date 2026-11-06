@@ -1,4 +1,4 @@
-from profile.serialization import dict_to_user_profile, user_profile_to_dict
+from candidate_profile.serialization import dict_to_user_profile, user_profile_to_dict
 
 
 def test_dict_to_user_profile_preserves_new_profile_fields():

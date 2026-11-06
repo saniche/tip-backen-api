@@ -1,7 +1,5 @@
 import logging
 from dataclasses import asdict
-from profile.profile_builder import extract_profile
-from profile.profile_service import apply_profile_edits, merge_profile_values
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import desc, select
@@ -17,6 +15,8 @@ from api.schemas.responses.profiles import (
     ProfileSessionResponse,
 )
 from auth.security import get_current_user
+from candidate_profile.profile_builder import extract_profile
+from candidate_profile.profile_service import apply_profile_edits, merge_profile_values
 from shared.database import SessionLocal, get_db
 from shared.document_text import DOCX_CONTENT_TYPE, DocumentTextError, extract_docx_text
 from shared.models import (

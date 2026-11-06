@@ -125,7 +125,7 @@ def _fail_exhausted(db: Session, job: ProcessingJob, outbox: ProcessingOutbox) -
 
 async def _run_handler(name: str, job_id: str, args: dict, db: Session, retry_transient: bool) -> None:
     if name == "profile":
-        from profile.profile_builder_router import _run_profile_session
+        from candidate_profile.profile_builder_router import _run_profile_session
 
         await _run_profile_session(args["session_id"], args["user_id"], job_id, db=db, retry_transient=retry_transient)
     elif name == "job_normalize":

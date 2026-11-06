@@ -1,9 +1,9 @@
 import json
 from dataclasses import asdict, dataclass, field
-from profile.serialization import user_profile_to_dict
 
 from pydantic import BaseModel, ConfigDict
 
+from candidate_profile.serialization import user_profile_to_dict
 from shared.llm_structured import call_openai_structured
 
 

@@ -5,12 +5,11 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
 
-import profile.profile_builder as profile_builder
-import profile.profile_builder_router as profile_builder_router
-
 import pytest
 from fastapi.testclient import TestClient
 
+import candidate_profile.profile_builder as profile_builder
+import candidate_profile.profile_builder_router as profile_builder_router
 import cover_letter.cover_letter_tailoring as cover_letter_tailoring
 import cv.cv_tailoring as cv_tailoring
 import cv.cv_tailoring_router as cv_tailoring_router
