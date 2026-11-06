@@ -1,11 +1,13 @@
+import logging
 from dataclasses import asdict
 from profile.profile_builder import extract_profile
 from profile.profile_service import apply_profile_edits, merge_profile_values
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+import shared.queue as background_queue
 from api.openapi import error_responses
 from api.schemas.requests.profiles import ProfileSessionCreate, ProfileUpdate
 from api.schemas.responses.profiles import (
@@ -18,6 +20,8 @@ from auth.security import get_current_user
 from shared.database import SessionLocal, get_db
 from shared.document_text import DOCX_CONTENT_TYPE, DocumentTextError, extract_docx_text
 from shared.models import (
+    ProcessingJob,
+    ProcessingJobStatus,
     ProcessingJobType,
     ProfileFileStatus,
     ProfileFragment,
@@ -28,13 +32,13 @@ from shared.models import (
     UserProfile,
 )
 from shared.processing_service import (
-    complete_processing_job,
-    create_processing_job,
     fail_processing_job,
     start_processing_job,
 )
+from shared.retry import is_transient_failure
 
 router = APIRouter(prefix="")
+logger = logging.getLogger("tip-api")
 
 SUPPORTED_PROFILE_CONTENT_TYPES = {
     "application/pdf",
@@ -52,8 +56,11 @@ def _extract_docx_text(content: bytes) -> str:
         raise HTTPException(422, str(error)) from error
 
 
-async def _run_profile_session(session_id: str, user_id: str, processing_job_id: str) -> None:
-    db = SessionLocal()
+async def _run_profile_session(
+    session_id: str, user_id: str, processing_job_id: str, *,
+    db: Session | None = None, retry_transient: bool = False,
+) -> None:
+    db = db if db is not None else SessionLocal()
     try:
         session = db.get(ProfileSession, session_id)
         start_processing_job(db, processing_job_id)
@@ -109,17 +116,25 @@ async def _run_profile_session(session_id: str, user_id: str, processing_job_id:
         db.add(profile)
         db.flush()
         session.status = ProfileSessionStatus.COMPLETED
+        processing_job = db.get(ProcessingJob, processing_job_id)
+        if processing_job is None:
+            raise ValueError("Processing job not found")
+        processing_job.status = ProcessingJobStatus.DONE
+        processing_job.result_id = profile.id
+        processing_job.error = None
         db.commit()
-        complete_processing_job(db, processing_job_id, profile.id)
     except Exception as ex:
+        logger.exception("Profile processing failed", extra={"processing_job_id": processing_job_id})
         db.rollback()
+        if retry_transient and is_transient_failure(ex):
+            raise
         session = db.get(ProfileSession, session_id)
         if session:
             session.status = ProfileSessionStatus.FAILED
         for file in db.execute(select(UserFile).where(UserFile.session_id == session_id)).scalars():
             if file.status != ProfileFileStatus.COMPLETED:
                 file.status = ProfileFileStatus.FAILED
-                file.error = f"Profile processing failed: {str(ex)}"
+                file.error = "Profile processing failed"
         db.commit()
         fail_processing_job(db, processing_job_id, "Profile processing failed")
     finally:
@@ -158,7 +173,6 @@ def create_profile_session(
 )
 async def upload_profile_file(
     session_id: str,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -175,6 +189,7 @@ async def upload_profile_file(
     text_content = (
         _extract_docx_text(content) if content_type == DOCX_CONTENT_TYPE else content.decode("utf-8", errors="replace")
     )
+    queue = await background_queue.connect_queue()
     user_file = UserFile(
         user_id=current_user.id,
         session_id=session.id,
@@ -183,10 +198,16 @@ async def upload_profile_file(
         content=text_content,
     )
     db.add(user_file)
-    processing_job = create_processing_job(db, current_user.id, ProcessingJobType.PROFILE_BUILD)
-    db.commit()
-    background_tasks.add_task(_run_profile_session, session.id, current_user.id, processing_job.id)
-    return {"file_id": user_file.id, "processing_job_id": processing_job.id, "status": processing_job.status.value}
+    processing_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.PROFILE_BUILD)
+    try:
+        outbox = background_queue.persist_work(db, processing_job, "profile", {
+            "session_id": session.id, "user_id": current_user.id,
+        })
+        response = {"file_id": user_file.id, "processing_job_id": processing_job.id, "status": "pending"}
+        await background_queue.publish_work(queue, db, outbox)
+    finally:
+        await queue.aclose()
+    return response
 
 
 @router.get(

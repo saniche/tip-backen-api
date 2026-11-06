@@ -1,10 +1,11 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import DateTime, case, cast, delete, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+import shared.queue as background_queue
 from api.openapi import error_responses
 from api.schemas.requests.jobs import JobNormalizeRequest
 from api.schemas.responses.jobs import (
@@ -31,6 +32,7 @@ from shared.models import (
     ProcessingJobType,
     User,
 )
+from shared.retry import is_transient_failure
 
 router = APIRouter(prefix="/jobs")
 logger = logging.getLogger("tip-api")
@@ -47,8 +49,11 @@ async def _run_job_normalization(
     processing_job_id: str,
     job_id: str,
     client_metadata: dict[str, str | None] | None = None,
+    *,
+    db: Session | None = None,
+    retry_transient: bool = False,
 ) -> None:
-    db = SessionLocal()
+    db = db if db is not None else SessionLocal()
     try:
         processing_job = db.get(ProcessingJob, processing_job_id)
         job = db.get(Job, job_id)
@@ -69,9 +74,11 @@ async def _run_job_normalization(
         processing_job.result_id = job.id
         ensure_interest(db, processing_job.user_id, job.id)
         db.commit()
-    except Exception:
+    except Exception as exc:
         logger.exception("Job normalization failed", extra={"processing_job_id": processing_job_id})
         db.rollback()
+        if retry_transient and is_transient_failure(exc):
+            raise
         if processing_job is not None:
             processing_job = db.get(ProcessingJob, processing_job_id)
             job = db.get(Job, job_id)
@@ -94,9 +101,8 @@ async def _run_job_normalization(
     tags=["Jobs"],
     responses=error_responses(401, 422, 500, 502, 503),
 )
-def normalize_job(
+async def normalize_job(
     payload: JobNormalizeRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -106,6 +112,7 @@ def normalize_job(
             ensure_interest(db, current_user.id, existing.id)
             db.commit()
         return {"id": existing.id, "status": "existing"}
+    queue = await background_queue.connect_queue()
     job = Job(
         url=payload.url,
         title=payload.title if payload.title is not None else "",
@@ -117,16 +124,15 @@ def normalize_job(
     )
     db.add(job)
     processing_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.JOB_NORMALIZE)
-    db.add(processing_job)
-    db.commit()
-    db.refresh(job)
-    db.refresh(processing_job)
-    background_tasks.add_task(
-        _run_job_normalization,
-        processing_job.id,
-        job.id,
-        {"title": payload.title, "company": payload.company, "location": payload.location},
-    )
+    try:
+        db.flush()
+        outbox = background_queue.persist_work(db, processing_job, "job_normalize", {
+            "job_id": job.id,
+            "client_metadata": {"title": payload.title, "company": payload.company, "location": payload.location},
+        })
+        await background_queue.publish_work(queue, db, outbox)
+    finally:
+        await queue.aclose()
     return {
         "id": job.id,
         "status": "processing",

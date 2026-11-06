@@ -3,10 +3,11 @@ import logging
 from profile.profile_service import resolve_profile
 from profile.serialization import dict_to_user_profile
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
+import shared.queue as background_queue
 from api.openapi import error_responses
 from api.schemas.requests.tailoring import TailoringRequestIn
 from api.schemas.responses.processing import ProcessingJobResponse
@@ -32,7 +33,9 @@ from shared.models import (
     User,
     UserProfile,
 )
-from shared.processing_service import complete_processing_job, fail_processing_job
+from shared.processing_artifacts import artifact_id, prepare_filenames
+from shared.processing_service import fail_processing_job
+from shared.retry import is_transient_failure
 from shared.storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
 from tailoring.tailoring_service import generate_document, plan_work_items
 
@@ -68,10 +71,11 @@ def _latest_scores(db: Session, user_id: str, profile_id: str, job_ids: list[str
     return {job_id: (round(score) if score is not None else None) for job_id, score in rows}
 
 
-async def _run_tailoring(proc_job_id: str, request_id: str) -> None:
-    db = SessionLocal()
+async def _run_tailoring(
+    proc_job_id: str, request_id: str, *, db: Session | None = None, retry_transient: bool = False
+) -> None:
+    db = db if db is not None else SessionLocal()
     uploaded_blob_paths: list[str] = []
-    committed = False
     try:
         proc_job = db.get(ProcessingJob, proc_job_id)
         request = db.get(CVRequest, request_id)
@@ -139,10 +143,14 @@ async def _run_tailoring(proc_job_id: str, request_id: str) -> None:
 
         results = await asyncio.gather(*(run(item) for item in items))
 
+        filenames = prepare_filenames(
+            db, proc_job_id, ["" if isinstance(result, Exception) else result.filename for result in results]
+        )
         completed = failed = 0
         first_error = None
-        for item, result in zip(items, results, strict=True):
+        for index, (item, result, filename) in enumerate(zip(items, results, filenames, strict=True)):
             record = TailoredCVRecord(
+                id=artifact_id(proc_job_id, index),
                 request_id=request.id,
                 user_id=user_id,
                 matching_id=None,
@@ -155,15 +163,18 @@ async def _run_tailoring(proc_job_id: str, request_id: str) -> None:
             )
             db.add(record)
             if isinstance(result, Exception):
+                if filename:
+                    delete_blob(build_blob_path(user_id, record.id, filename))
                 record.status, record.error = "failed", _item_error(item.kind, result)
                 failed, first_error = failed + 1, first_error or record.error
                 continue
             db.flush()
-            blob_path = build_blob_path(user_id, record.id, result.filename)
+            blob_path = build_blob_path(user_id, record.id, filename)
             try:
                 upload_markdown(blob_path, result.content)
             except Exception:  # noqa: BLE001
                 logger.exception("Tailored document upload failed")
+                delete_blob(blob_path)
                 record.status, record.error = "failed", "The document could not be stored"
                 failed, first_error = failed + 1, first_error or record.error
                 continue
@@ -173,26 +184,29 @@ async def _run_tailoring(proc_job_id: str, request_id: str) -> None:
 
         request.status = "completed" if failed == 0 else ("partial" if completed else "failed")
         request.error = None if completed else first_error
-        db.commit()
-        committed = True
         if completed:
-            complete_processing_job(db, proc_job_id, request_id)
+            proc_job.status = ProcessingJobStatus.DONE
+            proc_job.result_id = request_id
+            proc_job.error = None
         else:
-            fail_processing_job(db, proc_job_id, first_error or "Tailoring failed")
-    except Exception:  # noqa: BLE001 - surfaced through the polled processing job
+            proc_job.status = ProcessingJobStatus.FAILED
+            proc_job.error = first_error or "Tailoring failed"
+        db.commit()
+    except Exception as exc:  # noqa: BLE001 - surfaced through the polled processing job
         logger.exception("Tailoring failed", extra={"processing_job_id": proc_job_id})
         db.rollback()
-        if not committed:
-            for blob_path in uploaded_blob_paths:
-                try:
-                    delete_blob(blob_path)
-                except Exception:  # noqa: BLE001
-                    logger.warning("Tailoring blob cleanup failed", extra={"processing_job_id": proc_job_id})
-            request = db.get(CVRequest, request_id)
-            if request is not None:
-                request.status, request.error = "failed", "Tailoring failed"
-            db.commit()
-            fail_processing_job(db, proc_job_id, "Tailoring failed")
+        for blob_path in uploaded_blob_paths:
+            try:
+                delete_blob(blob_path)
+            except Exception:  # noqa: BLE001
+                logger.warning("Tailoring blob cleanup failed", extra={"processing_job_id": proc_job_id})
+        if retry_transient and is_transient_failure(exc):
+            raise
+        request = db.get(CVRequest, request_id)
+        if request is not None:
+            request.status, request.error = "failed", "Tailoring failed"
+        db.commit()
+        fail_processing_job(db, proc_job_id, "Tailoring failed")
     finally:
         db.close()
 
@@ -259,9 +273,8 @@ def _request_documents(db: Session, request_id: str) -> list[TailoredCVRecord]:
     tags=["Tailoring"],
     responses=error_responses(400, 401, 404, 409, 422, 500, 502, 503),
 )
-def create_tailoring_request(
+async def create_tailoring_request(
     payload: TailoringRequestIn,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -275,6 +288,7 @@ def create_tailoring_request(
     if any(job.status != "completed" for job in jobs.values()):
         raise HTTPException(400, "Job processing has not completed")
 
+    queue = await background_queue.connect_queue()
     request = CVRequest(
         user_id=current_user.id,
         matching_ids=[],
@@ -286,15 +300,16 @@ def create_tailoring_request(
         cover_letter_mode=payload.cover_letter.mode if payload.cover_letter.enabled else None,
         output_language=payload.output_language,
     )
-    db.add(request)
-    db.flush()
-    proc_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.CV_TAILOR, result_id=request.id)
-    db.add(proc_job)
-    db.commit()
-    db.refresh(proc_job)
-
-    background_tasks.add_task(_run_tailoring, proc_job.id, request.id)
-    return ProcessingJobResponse(id=proc_job.id, status=proc_job.status, result_id=request.id)
+    try:
+        db.add(request)
+        db.flush()
+        proc_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.CV_TAILOR, result_id=request.id)
+        outbox = background_queue.persist_work(db, proc_job, "tailoring", {"request_id": request.id})
+        response = ProcessingJobResponse(id=proc_job.id, status=proc_job.status, result_id=request.id)
+        await background_queue.publish_work(queue, db, outbox)
+    finally:
+        await queue.aclose()
+    return response
 
 
 @router.get(

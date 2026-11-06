@@ -40,7 +40,8 @@ def _detail(client, headers, response):
 
 
 def _blobs(user_id):
-    return [key for key in storage._LOCAL_BLOB_STORE if key.startswith(user_id)]
+    root = storage._local_blob_path(user_id)
+    return [path.relative_to(root.parent).as_posix() for path in root.rglob("*") if path.is_file()]
 
 
 def test_per_job_cv_and_general_cover_letter(client):

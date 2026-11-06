@@ -24,6 +24,7 @@ from api.schemas.common.errors import ErrorResponse
 from api.schemas.responses.health import HealthResponse, ReadinessResponse
 from shared.database import Base, engine
 from shared.errors import AppException, translate_exception
+from shared.queue import job_timeout, max_attempts, queue_name, redis_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,6 +59,11 @@ app = FastAPI(
 )
 
 logger = logging.getLogger("tip-api")
+
+max_attempts()
+job_timeout()
+queue_name()
+redis_settings()
 
 # Dev convenience only — use Alembic migrations instead of create_all once this runs anywhere real.
 Base.metadata.create_all(bind=engine)
