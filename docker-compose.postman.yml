@@ -1,0 +1,104 @@
+name: tip-postman-ci
+
+x-app: &app
+  image: tip-postman-ci:local
+  environment: &app-environment
+    DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/jobprocess
+    REDIS_URL: redis://redis:6379/0
+    JWT_SECRET_KEY: postman-ci-only-secret-not-for-production
+    OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
+    LOCAL_BLOB_DIRECTORY: /data/blob
+    WORKER_LOCK_DIRECTORY: /data/worker-locks
+  volumes: &app-volumes
+    - postman-blob-data:/data/blob
+    - postman-worker-locks:/data/worker-locks
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jobprocess
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d jobprocess"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    <<: *app
+    build:
+      context: .
+    command:
+      - sh
+      - -c
+      - alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2).read()
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "arq", "shared.worker.WorkerSettings"]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "arq", "--check", "shared.worker.WorkerSettings"]
+      interval: 10s
+      timeout: 30s
+      retries: 12
+      start_period: 10s
+
+  newman:
+    image: postman/newman:alpine
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace:ro
+      - ./postman-results:/reports
+    command:
+      - run
+      - postman/Talent-Intelligence-Platform.postman_collection.json
+      - -e
+      - postman/Talent-Intelligence-Platform.local.postman_environment.json
+      - --env-var
+      - base_url=http://api:8000
+      - --env-var
+      - api_url=http://api:8000/api/v1
+      - --iteration-data
+      - postman/fixtures/ci-iteration-data.json
+      - --reporters
+      - cli,junit
+      - --reporter-junit-export
+      - /reports/newman-results.xml
+    depends_on:
+      api:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+
+volumes:
+  postman-blob-data:
+  postman-worker-locks:
