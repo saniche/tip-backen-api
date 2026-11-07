@@ -1,6 +1,4 @@
 import logging
-import profile.profile_builder_router as profile_builder_router
-import profile.profiles_router as profiles_router
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
@@ -11,6 +9,8 @@ from sqlalchemy import text
 
 import applications.router as applications_router
 import auth.router as auth_router
+import candidate_profile.profile_builder_router as profile_builder_router
+import candidate_profile.profiles_router as profiles_router
 import cv.cv_tailoring_router as cv_tailoring_router
 import cv.download_router as download_router
 import defaults.defaults_router as defaults_router
@@ -24,6 +24,7 @@ from api.schemas.common.errors import ErrorResponse
 from api.schemas.responses.health import HealthResponse, ReadinessResponse
 from shared.database import Base, engine
 from shared.errors import AppException, translate_exception
+from shared.queue import job_timeout, max_attempts, queue_name, redis_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -58,6 +59,11 @@ app = FastAPI(
 )
 
 logger = logging.getLogger("tip-api")
+
+max_attempts()
+job_timeout()
+queue_name()
+redis_settings()
 
 # Dev convenience only — use Alembic migrations instead of create_all once this runs anywhere real.
 Base.metadata.create_all(bind=engine)

@@ -52,6 +52,25 @@ newman run collection.json -d postings.json -n 5
 newman run collection.json -d postings.json -r cli,junit --reporter-junit-export results.xml
 ```
 
+## Containerized CI
+
+The `Postman E2E` GitHub Actions workflow runs the API, worker, PostgreSQL, Redis, and Newman in
+Docker containers on pull requests and before deployment from `main`. Configure the repository's
+`OPENAI_API_KEY` Actions secret; the collection runs real structured-processing requests and
+therefore uses that OpenAI account. The workflow publishes test totals in the run summary and
+uploads the JUnit XML report and Newman log as the `postman-results` artifact.
+
+Run the same stack locally with Docker Compose:
+
+```powershell
+$env:OPENAI_API_KEY = "<your OpenAI API key>"
+docker compose -f docker-compose.postman.yml up --build --wait api worker
+docker compose -f docker-compose.postman.yml run --rm newman
+docker compose -f docker-compose.postman.yml down --volumes --remove-orphans
+```
+
+The JUnit report and Newman log are written to `postman-results/`.
+
 The collection includes successful and expected-failure checks for all requested operational,
 authentication, profile, processing job, matching, and CV tailoring routes. The job-normalization
 folder is a prerequisite that supplies a real job for successful matching tests. Matching requests
@@ -79,9 +98,9 @@ setup job (see `specs/004-interest-management/contracts/api-v1.md`):
   gets a separate interest on the same job.
 - Unauthenticated list, add, and remove return `401`.
 
-The `Cleanup` folder also removes the setup job's interest. A `409` for adding a job whose
-normalization has not completed is covered by the automated pytest suite, not Postman, because the
-collection cannot create a job in that state.
+The `Cleanup` folder verifies the expected `404` for the setup job's already-removed interest. A
+`409` for adding a job whose normalization has not completed is covered by the automated pytest
+suite, not Postman, because the collection cannot create a job in that state.
 
 ## Application Journal folder
 

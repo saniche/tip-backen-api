@@ -50,6 +50,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+postman-results/
 
 # Translations
 *.mo
@@ -102,6 +103,8 @@ uv.lock
 
 # Local development database
 jobprocess.db
+.local-blobs/
+.worker-locks/
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.

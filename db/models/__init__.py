@@ -281,6 +281,7 @@ class ProcessingJob(Base):
     """Tracks a backgrounded operation so the client can poll GET /jobs/{id} for status/result."""
 
     __tablename__ = "processing_jobs"
+    __table_args__ = (Index("ix_processing_jobs_status", "status"),)
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
@@ -292,3 +293,16 @@ class ProcessingJob(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)
+
+
+class ProcessingOutbox(Base):
+    __tablename__ = "processing_outbox"
+
+    processing_job_id: Mapped[str] = mapped_column(
+        String, ForeignKey("processing_jobs.id", ondelete="CASCADE"), primary_key=True
+    )
+    task_name: Mapped[str] = mapped_column(String, nullable=False)
+    arguments: Mapped[dict] = mapped_column(JSON, nullable=False)
+    attempts: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
+    last_dispatched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, nullable=False)

@@ -34,12 +34,12 @@ The architecture is intentionally backend-focused. Client applications are consu
 |---|---|
 | **API First** | All platform capabilities are exposed through a versioned REST API. |
 | **Stateless API** | The API does not maintain user session state between requests. |
-| **Async for Long-Running Operations** | LLM and document-processing operations execute through FastAPI BackgroundTasks in V1. |
+| **Async for Long-Running Operations** | LLM and document-processing operations execute in ARQ workers via Redis. |
 | **Separation of Concerns** | API, application services, domain/business rules, and infrastructure concerns remain separated. |
 | **Provider Independence** | Business services do not depend directly on a specific LLM provider or authentication implementation. |
 | **Deterministic Business Rules** | Business-critical calculations such as matching scores, eligibility, weighting, and ranking are performed by the backend. |
 | **Security by Design** | Authentication, authorization, resource ownership, input validation, secure storage, and secret management are part of the architecture. |
-| **Cloud Ready** | The solution is designed for Azure deployment without requiring distributed infrastructure in V1. |
+| **Cloud Ready** | API and worker processes use shared database, queue and document storage infrastructure. |
 | **Observable Processing** | Long-running operations expose status and failures and generate structured logs. |
 | **Testability** | Business logic and external dependencies are isolated so that unit, integration, and API tests can be implemented independently. |
 
@@ -147,14 +147,14 @@ Application services should depend on abstractions/interfaces rather than direct
 | API Documentation | OpenAPI / FastAPI | Built-in | **Current** | API contract/documentation |
 | Testing | pytest | Current stable | **Current** | Automated testing |
 | Static Analysis | mypy / Ruff or equivalent | Current stable | **Current** | Code quality |
+| Background Processing | ARQ | Configurable | **Current** | Separate worker execution |
+| Queue / Broker | Redis | Managed service | **Current** | Distributed task coordination |
 
 ### 4.2 Coming Soon / Future Technology
 
 | Area | Technology | Status | Purpose |
 |---|---|---|---|
 | Authentication | Keycloak / OAuth2/OIDC | **Coming Soon** | External identity management |
-| Distributed Background Processing | Celery | **Coming Soon** | Distributed worker execution |
-| Queue / Broker | Redis | **Coming Soon** | Distributed task coordination |
 | API Gateway | Azure API Management | **Coming Soon** | Gateway, policies, rate limiting |
 | Secrets | Azure Key Vault | **Coming Soon** | Managed secret storage |
 | Container Orchestration | Kubernetes | **Future** | Multi-instance orchestration |
@@ -303,9 +303,8 @@ The migration must not require changes to business services because those servic
 
 ### 7.1 Current V1 Model
 
-Long-running operations use **FastAPI BackgroundTasks**.
-
-No distributed message broker or worker platform is required for V1.
+Long-running operations use **ARQ workers** and Redis. A transactional database outbox
+reconciles committed work after enqueue or worker interruptions.
 
 Current background operations:
 
@@ -329,7 +328,7 @@ Validate request
 Create MatchReport
 (status = Processing)
         ↓
-Start FastAPI BackgroundTask
+Publish to Redis through the database outbox
         ↓
 Return 202 + report_id
         ↓
@@ -351,19 +350,22 @@ Created → Processing → Completed
 
 The API must persist failure state sufficiently for the client to understand that processing failed without exposing internal implementation details.
 
-### 7.4 Coming Soon: Distributed Processing
+### 7.4 Distributed Processing
 
-When workload or reliability requirements justify it, background processing may evolve to:
+Workers execute independently from the API:
 
 ```text
 FastAPI
    ↓
 Queue / Broker
    ↓
-Celery Workers
+ARQ Workers
 ```
 
-This is not part of the current V1 deployment requirement.
+The API returns 503 when Redis is unavailable. An ambiguous publication timeout can return 503
+even though the outbox later recovers the operation; clients do not have an idempotency key.
+Attempts are bounded by `ARQ_MAX_ATTEMPTS` (1–3 total). Delivery is at least once, so external
+AI calls can be repeated after interruption. Combined tailoring preserves partial results.
 
 ---
 
@@ -920,7 +922,8 @@ GET /ready
 
 `/health` confirms that the API process is operational.
 
-`/ready` verifies required dependencies needed for normal operation.
+`/ready` checks database connectivity. Queue availability is checked when submitting work;
+worker health is checked separately through the ARQ health command.
 
 ### 21.2 Structured Logging
 
@@ -959,7 +962,7 @@ These are not required for the initial backend implementation.
 
 ### 22.1 Current V1
 
-The V1 architecture is designed for a single API instance with FastAPI background processing.
+The API and ARQ workers run as separate processes using shared database and storage services.
 
 Performance measures include database connection pooling, indexed queries, pagination, asynchronous I/O, bounded request payloads, efficient JSONB usage where appropriate, and batch processing inside background operations.
 
@@ -969,7 +972,7 @@ The API should remain stateless so that multiple instances can be introduced lat
 
 ### 22.3 Coming Soon
 
-When scale requires it, multiple API instances, distributed worker processes, queue/broker infrastructure, and distributed rate limiting may be introduced.
+When scale requires it, additional API and worker instances and distributed rate limiting may be introduced.
 
 ---
 
@@ -1004,6 +1007,7 @@ Exact numerical limits belong in environment configuration rather than the archi
               │                │
         FastAPI API       PostgreSQL
               │
+        Redis + ARQ worker
               │
        Azure Blob Storage
               │
@@ -1020,16 +1024,20 @@ Development may use:
 ```text
 Docker Compose
     ├── FastAPI
+    ├── ARQ worker
+    ├── Redis
     └── PostgreSQL
 ```
 
-Redis and distributed workers are not required for V1.
+Redis and a worker are required for background operations. API and worker must share the database
+and document storage; SQLite workers must also share the configured worker-lock directory.
 
 ### 24.3 Production Baseline
 
 The initial production deployment requires:
 
 - containerized FastAPI application
+- containerized ARQ worker and Redis
 - managed PostgreSQL
 - Azure Blob Storage
 - LLM provider access
@@ -1125,7 +1133,7 @@ Alembic
 PostgreSQL
 Azure Blob Storage
 OpenAI
-FastAPI BackgroundTasks
+ARQ workers and Redis
 Docker
 Versioned REST API
 Application-managed authentication
@@ -1140,8 +1148,6 @@ Deterministic backend scoring
 
 ```text
 Keycloak / OIDC
-Celery
-Redis broker
 Azure API Management
 Azure Key Vault
 Advanced Azure monitoring
@@ -1152,7 +1158,6 @@ Advanced Azure monitoring
 ```text
 Kubernetes
 Multiple API instances
-Distributed workers
 Prometheus
 OpenTelemetry
 Distributed caching
@@ -1258,7 +1263,7 @@ FastAPI
    ├── PostgreSQL
    ├── Azure Blob
    ├── OpenAI
-   └── BackgroundTasks
+   └── ARQ worker + Redis
 ```
 
 ### Coming Soon
@@ -1271,7 +1276,7 @@ FastAPI
    ├── Azure Blob
    ├── AI Provider Abstraction
    ├── Keycloak
-   └── Celery + Redis
+   └── ARQ worker + Redis
 ```
 
 ### Future Scale
@@ -1301,8 +1306,8 @@ Evolution should be driven by actual product usage, reliability, security, and s
 | Database | PostgreSQL | Reliable relational persistence and JSONB support |
 | ORM | SQLAlchemy | Database abstraction and transaction management |
 | API versioning | `/api/v1` | Clear API evolution path |
-| Background processing | FastAPI BackgroundTasks | Sufficient for current V1 scope |
-| Distributed queue | Deferred | Not required for current workload |
+| Background processing | ARQ workers | Separate, retryable processing |
+| Distributed queue | Redis with database outbox | Recover committed work after queue interruptions |
 | LLM provider | OpenAI | Initial AI provider |
 | LLM abstraction | Required | Avoid provider lock-in |
 | Matching score | Backend | Deterministic and reproducible |
@@ -1321,10 +1326,10 @@ The backend architecture maps directly to the four functional capabilities:
 
 | Functional Capability | Backend Components |
 |---|---|
-| Profile Processing | Profile API, Profile Service, Profile AI, BackgroundTasks, PostgreSQL, Blob Storage |
-| Job Normalization | Job API, Job Service, Job AI, BackgroundTasks, PostgreSQL |
-| Intelligent Matching | Matching API, Matching Service, Matching AI, Scoring Engine, BackgroundTasks, PostgreSQL |
-| CV Tailoring | CV API, CV Tailoring Service, Tailoring AI, BackgroundTasks, PostgreSQL, Blob Storage |
+| Profile Processing | Profile API, Profile Service, Profile AI, ARQ, Redis, PostgreSQL, Blob Storage |
+| Job Normalization | Job API, Job Service, Job AI, ARQ, Redis, PostgreSQL |
+| Intelligent Matching | Matching API, Matching Service, Matching AI, Scoring Engine, ARQ, Redis, PostgreSQL |
+| CV Tailoring | CV API, CV Tailoring Service, Tailoring AI, ARQ, Redis, PostgreSQL, Blob Storage |
 
 The functional specification remains authoritative for product behavior and business requirements.
 

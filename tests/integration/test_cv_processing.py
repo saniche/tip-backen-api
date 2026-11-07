@@ -213,7 +213,7 @@ def test_cv_invalid_structured_output_publishes_no_record(client, monkeypatch):
     assert client.get("/api/v1/cv", headers=headers).json() == []
 
 
-def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch):
+def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch, tmp_path):
     token = client.post(
         "/api/v1/auth/register", json={"email": "cv-upload-failure@example.com", "password": "password123"}
     ).json()["access_token"]
@@ -227,7 +227,10 @@ def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch):
     report = client.post("/api/v1/matching", headers=headers, json={"job_ids": [job["id"]]}).json()
     match_id = client.get(f"/api/v1/matching/reports/{report['result_id']}", headers=headers).json()["results"][0]["id"]
 
+    original_upload = cv_tailoring_router.upload_markdown
+
     def fail_upload(*args, **kwargs):
+        original_upload(*args, **kwargs)
         raise RuntimeError("storage unavailable")
 
     monkeypatch.setattr(cv_tailoring_router, "upload_markdown", fail_upload)
@@ -236,6 +239,7 @@ def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch):
 
     assert status["status"] == "failed"
     assert client.get("/api/v1/cv", headers=headers).json() == []
+    assert not [path for path in tmp_path.rglob("*") if path.is_file()]
 
 
 def test_later_multi_cv_failure_deletes_earlier_uploaded_blob(client, monkeypatch):
@@ -274,5 +278,5 @@ def test_later_multi_cv_failure_deletes_earlier_uploaded_blob(client, monkeypatc
     status = client.get(f"/api/v1/processing-jobs/{request['id']}", headers=headers).json()
 
     assert status["status"] == "failed"
-    assert deleted == [uploaded[0]]
+    assert deleted == uploaded
     assert client.get("/api/v1/cv", headers=headers).json() == []

@@ -77,7 +77,7 @@ def _view(report: MatchReport, results: list[JobMatchingResult]) -> MatchReportV
     )
 
 
-def create_pending_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReport:
+def create_pending_match_report(db: Session, user_id: str, job_ids: list[str], *, commit: bool = True) -> MatchReport:
     if not job_ids:
         raise ValueError("At least one job id is required")
     profile = (
@@ -97,12 +97,17 @@ def create_pending_match_report(db: Session, user_id: str, job_ids: list[str]) -
 
     report = MatchReport(user_id=user_id, profile_id=profile.id, status="pending", rules_version="v2")
     db.add(report)
-    db.commit()
-    db.refresh(report)
+    if commit:
+        db.commit()
+        db.refresh(report)
+    else:
+        db.flush()
     return report
 
 
-async def process_match_report(db: Session, report_id: str, user_id: str, job_ids: list[str]) -> MatchReportView:
+async def process_match_report(
+    db: Session, report_id: str, user_id: str, job_ids: list[str], *, commit: bool = True
+) -> MatchReportView:
     report = db.get(MatchReport, report_id)
     if report is None or report.user_id != user_id:
         raise ValueError("Match report not found")
@@ -153,7 +158,10 @@ async def process_match_report(db: Session, report_id: str, user_id: str, job_id
     ):
         result.rank = rank
     report.status = "completed"
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     return _view(report, persisted)
 
 

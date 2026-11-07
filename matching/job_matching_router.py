@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+import shared.queue as background_queue
 from api.openapi import error_responses
 from api.schemas.requests.matching import JobMatchingRequest, MatchCreateRequest
 from api.schemas.responses.matching import MatchReportResponse, MatchReportSummaryResponse
@@ -12,13 +13,17 @@ from auth.security import get_current_user
 from matching.matching_service import create_pending_match_report, process_match_report
 from shared.database import SessionLocal, get_db
 from shared.models import JobMatchingResult, MatchReport, ProcessingJob, ProcessingJobStatus, ProcessingJobType, User
+from shared.retry import is_transient_failure
 
 router = APIRouter(prefix="/matching")
 logger = logging.getLogger("tip-api")
 
 
-async def _run_match_report(processing_job_id: str, report_id: str, user_id: str, job_ids: list[str]) -> None:
-    db = SessionLocal()
+async def _run_match_report(
+    processing_job_id: str, report_id: str, user_id: str, job_ids: list[str],
+    *, db: Session | None = None, retry_transient: bool = False,
+) -> None:
+    db = db if db is not None else SessionLocal()
     processing_job = None
     try:
         processing_job = db.get(ProcessingJob, processing_job_id)
@@ -26,13 +31,15 @@ async def _run_match_report(processing_job_id: str, report_id: str, user_id: str
             return
         processing_job.status = ProcessingJobStatus.RUNNING
         db.commit()
-        await process_match_report(db, report_id, user_id, job_ids)
+        await process_match_report(db, report_id, user_id, job_ids, commit=False)
         processing_job.status = ProcessingJobStatus.DONE
         processing_job.result_id = report_id
         db.commit()
     except Exception as exc:  # noqa: BLE001 - surface via polled status
         logger.exception("Matching failed", extra={"processing_job_id": processing_job_id})
         db.rollback()
+        if retry_transient and is_transient_failure(exc):
+            raise
         processing_job = db.get(ProcessingJob, processing_job_id)
         report = db.get(MatchReport, report_id)
         if processing_job is not None:
@@ -54,9 +61,8 @@ async def _run_match_report(processing_job_id: str, report_id: str, user_id: str
     tags=["Matching"],
     responses=error_responses(400, 401, 404, 422, 500, 502, 503),
 )
-def create_match_report(
+async def create_match_report(
     payload: MatchCreateRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -64,15 +70,20 @@ def create_match_report(
         raise HTTPException(400, "At least one job id is required")
 
     try:
-        report = create_pending_match_report(db, current_user.id, payload.job_ids)
+        report = create_pending_match_report(db, current_user.id, payload.job_ids, commit=False)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    queue = await background_queue.connect_queue()
     processing_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.MATCHING)
-    db.add(processing_job)
-    db.commit()
-    db.refresh(processing_job)
-    background_tasks.add_task(_run_match_report, processing_job.id, report.id, current_user.id, payload.job_ids)
-    return ProcessingJobResponse(id=processing_job.id, status=processing_job.status, result_id=report.id)
+    try:
+        outbox = background_queue.persist_work(db, processing_job, "matching", {
+            "report_id": report.id, "user_id": current_user.id, "job_ids": payload.job_ids,
+        })
+        response = ProcessingJobResponse(id=processing_job.id, status=processing_job.status, result_id=report.id)
+        await background_queue.publish_work(queue, db, outbox)
+    finally:
+        await queue.aclose()
+    return response
 
 
 @router.get(
@@ -187,11 +198,10 @@ def delete_match_report(
     tags=["Matching"],
     responses=error_responses(400, 401, 404, 422, 500, 502, 503),
 )
-def match_job(
+async def match_job(
     payload: JobMatchingRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     request = MatchCreateRequest(job_ids=[payload.job_id])
-    return create_match_report(request, background_tasks, current_user, db)
+    return await create_match_report(request, current_user, db)

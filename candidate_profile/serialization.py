@@ -5,7 +5,8 @@ reverse needs explicit reconstruction since asdict() flattens nested dataclasses
 """
 
 from dataclasses import asdict, fields
-from profile.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
+
+from candidate_profile.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
 
 
 def user_profile_to_dict(profile: UserProfile) -> dict:

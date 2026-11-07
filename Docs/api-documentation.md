@@ -32,3 +32,8 @@ modules only.
 File-upload operations use multipart form data. Tailored-document download operations return
 `text/markdown` and include an attachment filename plus a short-lived, read-only download URL.
 Storage account credentials are not included in API responses.
+
+Background submissions return `202` with their existing processing-job identifier. If Redis is
+unavailable, they return `503` rather than running in the API process. A publication timeout can
+return `503` even if the operation is later recovered from the database outbox; retrying the
+request may create another operation. Poll `/api/v1/processing-jobs/{id}` for accepted jobs.

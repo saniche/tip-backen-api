@@ -1,0 +1,89 @@
+name: Postman E2E
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postman:
+    name: Run Postman collection in Docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check OpenAI API key
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::Configure the OPENAI_API_KEY repository secret to run the Postman E2E collection."
+            exit 1
+          fi
+
+      - name: Prepare report directory
+        run: mkdir -p postman-results
+
+      - name: Start API and worker containers
+        run: >-
+          docker compose -f docker-compose.postman.yml
+          up --build --detach --wait --wait-timeout 300 api worker
+
+      - name: Run Postman collection in Newman container
+        run: |
+          set -o pipefail
+          docker compose -f docker-compose.postman.yml run --rm newman 2>&1 | tee postman-results/newman.log
+
+      - name: Stop test containers
+        if: always()
+        run: docker compose -f docker-compose.postman.yml down --volumes --remove-orphans
+
+      - name: Publish test summary
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          report = Path("postman-results/newman-results.xml")
+          if report.is_file():
+              root = ET.parse(report).getroot()
+              suites = list(root.iter("testsuite"))
+              tests = sum(int(suite.get("tests", 0)) for suite in suites)
+              failures = sum(int(suite.get("failures", 0)) for suite in suites)
+              errors = sum(int(suite.get("errors", 0)) for suite in suites)
+              skipped = sum(int(suite.get("skipped", 0)) for suite in suites)
+              passed = tests - failures - errors - skipped
+              result = (
+                  f"| Passed | {passed} |\n"
+                  f"| Failed | {failures + errors} |\n"
+                  f"| Skipped | {skipped} |\n"
+              )
+          else:
+              result = "| Result | Newman did not produce a JUnit report |\n"
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(
+                  "### Postman E2E results\n\n"
+                  "| Result | Count |\n|---|---:|\n"
+                  f"{result}\n"
+                  "The JUnit report and Newman log are attached as the "
+                  "`postman-results` workflow artifact.\n"
+              )
+          PY
+
+      - name: Upload Postman reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postman-results-${{ github.run_id }}
+          path: |
+            postman-results/newman-results.xml
+            postman-results/newman.log
+          if-no-files-found: warn
+          retention-days: 14

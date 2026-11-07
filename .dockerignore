@@ -6,6 +6,10 @@ __pycache__/
 .coverage*
 coverage/
 .env*
+.local-blobs/
+.worker-locks/
+postman-results/
+jobprocess.db
 *.log
 Dockerfile*
 .dockerignore

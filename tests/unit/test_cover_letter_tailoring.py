@@ -1,9 +1,9 @@
 import ast
-from profile.profile_builder import UserProfile
 
 import pytest
 
 import cover_letter.cover_letter_tailoring as module
+from candidate_profile.profile_builder import UserProfile
 from cover_letter.cover_letter_tailoring import (
     COVER_LETTER_SYSTEM_PROMPT,
     STYLE_REFERENCE_ADDENDUM,

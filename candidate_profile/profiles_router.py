@@ -1,12 +1,5 @@
 """Profile management: a user can own several profiles; the latest active one is the default."""
 
-from profile.profile_service import (
-    apply_profile_edits,
-    get_owned_profile,
-    list_profiles,
-    soft_delete_profile,
-)
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -14,6 +7,12 @@ from api.openapi import error_responses
 from api.schemas.requests.profiles import ProfilePatch
 from api.schemas.responses.profiles import UserProfileDetailResponse, UserProfileSummaryResponse
 from auth.security import get_current_user
+from candidate_profile.profile_service import (
+    apply_profile_edits,
+    get_owned_profile,
+    list_profiles,
+    soft_delete_profile,
+)
 from shared.database import get_db
 from shared.models import User, UserProfile
 
