@@ -69,8 +69,13 @@ class OpenAIProvider(StructuredLLMProvider):
         started_at = time.perf_counter()
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
+            logger.error("Structured provider is not configured (operation=%s, reason=missing_api_key)", operation)
             raise StructuredProviderError("External processing is not configured.")
-        selected_model = self._model_for(operation, model)
+        try:
+            selected_model = self._model_for(operation, model)
+        except StructuredProviderError:
+            logger.error("Structured provider is not configured (operation=%s, reason=missing_model)", operation)
+            raise
         try:
             async with AsyncOpenAI(api_key=api_key, timeout=self._timeout_seconds) as client:
                 response = await client.responses.parse(
@@ -84,7 +89,10 @@ class OpenAIProvider(StructuredLLMProvider):
                 raise StructuredProviderError("External processing did not return a usable result.")
             result = response.output_parsed
             logger.info(
-                "Structured provider completed",
+                "Structured provider completed (operation=%s, model=%s, duration_ms=%s)",
+                operation,
+                selected_model,
+                int((time.perf_counter() - started_at) * 1000),
                 extra={
                     "operation": operation,
                     "model": selected_model,
@@ -92,9 +100,13 @@ class OpenAIProvider(StructuredLLMProvider):
                 },
             )
             return result
-        except StructuredProviderError:
+        except StructuredProviderError as exc:
             logger.warning(
-                "Structured provider failed",
+                "Structured provider failed (operation=%s, model=%s, error_type=%s): %s",
+                operation,
+                selected_model,
+                type(exc).__name__,
+                exc,
                 extra={
                     "operation": operation,
                     "model": selected_model,

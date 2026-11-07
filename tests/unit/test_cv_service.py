@@ -1,11 +1,16 @@
 import json
-from profile.profile_builder import Education, UserProfile, WorkExperience
 
 import pytest
 
 import cv.cv_tailoring as cv_tailoring
+from candidate_profile.profile_builder import Education, UserProfile, WorkExperience
 from cv.cv_service import validate_cv_selection
-from cv.cv_tailoring import CV_TAILORING_SYSTEM_PROMPT, TailoredCvOutput, _validate_grounded_content
+from cv.cv_tailoring import (
+    CV_TAILORING_SYSTEM_PROMPT,
+    TailoredCvOutput,
+    TailoredExperience,
+    _validate_grounded_content,
+)
 from matching.llm_matching import JobData
 
 
@@ -68,13 +73,18 @@ def _structured_experience(**overrides):
 
 
 def _profile_with_experience():
-    return UserProfile(WorkExperiences=[
-        WorkExperience(
-            Title="Nurse", Company="Care Hospital", StartDate="2020", EndDate="2023",
-            RealisationDescription=["Delivered patient care"],
-        ),
-        WorkExperience(Title="Nurse", Company="Other Hospital", StartDate="2010", EndDate="2015"),
-    ])
+    return UserProfile(
+        WorkExperiences=[
+            WorkExperience(
+                Title="Nurse",
+                Company="Care Hospital",
+                StartDate="2020",
+                EndDate="2023",
+                RealisationDescription=["Delivered patient care"],
+            ),
+            WorkExperience(Title="Nurse", Company="Other Hospital", StartDate="2010", EndDate="2015"),
+        ]
+    )
 
 
 def _output_with_experience(item):
@@ -106,39 +116,61 @@ def test_experience_accepts_tailored_title_with_matching_company_and_dates():
     ],
 )
 async def test_experience_optional_summary_uses_available_profile_details(monkeypatch, source_summary, realisations):
-    profile = UserProfile(WorkExperiences=[WorkExperience(
-        Title="Nurse", Summary=source_summary, RealisationDescription=realisations,
-    )])
+    profile = UserProfile(
+        WorkExperiences=[
+            WorkExperience(
+                Title="Nurse",
+                Summary=source_summary,
+                RealisationDescription=realisations,
+            )
+        ]
+    )
     contexts = []
 
     async def provider(system, user, schema_model, **kwargs):
         contexts.append(json.loads(user))
-        return _output_with_experience(_structured_experience(
-            company=None, start_date=None, end_date=None, summary="Supported patient care.",
-            descriptions=[], description_evidence=[],
-        ))
+        return _output_with_experience(
+            _structured_experience(
+                company=None,
+                start_date=None,
+                end_date=None,
+                summary="Supported patient care.",
+                descriptions=[],
+                description_evidence=[],
+            )
+        )
 
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
     result = await cv_tailoring.build_tailored_cv(profile, JobData(title="Engineer"), None)
 
-    assert result.experience == ["Community Care Lead", "Supported patient care."]
+    assert result.experience == [    TailoredExperience(title="Community Care Lead", summary="Supported patient care.")]
     assert contexts[0]["profile"]["WorkExperiences"][0]["Summary"] == source_summary
     assert contexts[0]["profile"]["WorkExperiences"][0]["RealisationDescription"] == realisations
 
 
 @pytest.mark.asyncio
 async def test_experience_without_responsibility_details_keeps_header(monkeypatch):
-    profile = UserProfile(WorkExperiences=[WorkExperience(Title="Nurse", Company="Care Hospital")])
+    profile = UserProfile(
+        WorkExperiences=[WorkExperience(Title="Nurse", Company="Care Hospital", Location="Ottawa, ON")]
+    )
 
     async def provider(system, user, schema_model, **kwargs):
-        return _output_with_experience(_structured_experience(
-            start_date=None, end_date=None, summary=None, descriptions=[], description_evidence=[],
-        ))
+        return _output_with_experience(
+            _structured_experience(
+                start_date=None,
+                end_date=None,
+                summary=None,
+                descriptions=[],
+                description_evidence=[],
+            )
+        )
 
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
     result = await cv_tailoring.build_tailored_cv(profile, JobData(title="Engineer"), None)
 
-    assert result.experience == ["Community Care Lead | Care Hospital"]
+    assert result.experience == [
+        TailoredExperience(company="Care Hospital", location="Ottawa, ON", title="Community Care Lead")
+    ]
 
 
 def test_experience_summary_is_not_evidence_checked():
@@ -147,25 +179,37 @@ def test_experience_summary_is_not_evidence_checked():
     _validate_grounded_content(_output_with_experience(item), _profile_with_experience(), JobData(title="Engineer"))
 
 
-@pytest.mark.parametrize(("summary", "descriptions", "evidence"), [
-    ("Invented summary.", [], []),
-    (None, ["Care Hospital"], [["Care Hospital"]]),
-])
+@pytest.mark.parametrize(
+    ("summary", "descriptions", "evidence"),
+    [
+        ("Invented summary.", [], []),
+        (None, ["Care Hospital"], [["Care Hospital"]]),
+    ],
+)
 def test_experience_without_responsibility_details_rejects_generated_narrative(summary, descriptions, evidence):
     profile = UserProfile(WorkExperiences=[WorkExperience(Title="Nurse", Company="Care Hospital")])
-    output = _output_with_experience(_structured_experience(
-        start_date=None, end_date=None, summary=summary, descriptions=descriptions, description_evidence=evidence,
-    ))
+    output = _output_with_experience(
+        _structured_experience(
+            start_date=None,
+            end_date=None,
+            summary=summary,
+            descriptions=descriptions,
+            description_evidence=evidence,
+        )
+    )
 
     with pytest.raises(ValueError, match="no responsibility details"):
         _validate_grounded_content(output, profile, JobData(title="Engineer"))
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("source", [
-    "Consulted for major clients and maintained and modernized software products.",
-    "Improved patient's care\nà Montréal.",
-])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "Consulted for major clients and maintained and modernized software products.",
+        "Improved patient's care\nà Montréal.",
+    ],
+)
 async def test_experience_uses_json_context_and_accepts_exact_field_representation(monkeypatch, source):
     profile = UserProfile(WorkExperiences=[WorkExperience(Summary=source)])
     calls = []
@@ -175,28 +219,41 @@ async def test_experience_uses_json_context_and_accepts_exact_field_representati
         calls.append(context)
         assert context["profile"]["WorkExperiences"][0]["Summary"] == source
         assert context["profile"]["WorkExperiences"][0]["Company"] is None
-        return _output_with_experience(_structured_experience(
-            company=None, start_date=None, end_date=None, descriptions=[source],
-            description_evidence=[[f"Summary={source!r}"]],
-        ))
+        return _output_with_experience(
+            _structured_experience(
+                company=None,
+                start_date=None,
+                end_date=None,
+                descriptions=[source],
+                description_evidence=[[f"Summary={source!r}"]],
+            )
+        )
 
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
     result = await cv_tailoring.build_tailored_cv(profile, JobData(title="Engineer"), None)
 
     assert len(calls) == 1
-    assert source in result.experience
+    assert source in result.experience[0].descriptions
 
 
-@pytest.mark.parametrize("citation", [
-    "Summary='Invented experience'",
-    "Title='Provided patient care'",
-])
+@pytest.mark.parametrize(
+    "citation",
+    [
+        "Summary='Invented experience'",
+        "Title='Provided patient care'",
+    ],
+)
 def test_experience_rejects_mismatched_field_representation(citation):
     profile = UserProfile(WorkExperiences=[WorkExperience(Summary="Provided patient care")])
-    output = _output_with_experience(_structured_experience(
-        company=None, start_date=None, end_date=None, descriptions=["Provided patient care"],
-        description_evidence=[[citation]],
-    ))
+    output = _output_with_experience(
+        _structured_experience(
+            company=None,
+            start_date=None,
+            end_date=None,
+            descriptions=["Provided patient care"],
+            description_evidence=[[citation]],
+        )
+    )
 
     with pytest.raises(ValueError, match="unsupported"):
         _validate_grounded_content(output, profile, JobData(title="Engineer"))
@@ -215,7 +272,8 @@ def test_experience_rejects_company_and_dates_not_matching_linked_profile(field,
     with pytest.raises(ValueError) as error:
         _validate_grounded_content(
             _output_with_experience(_structured_experience(**{field: value})),
-            _profile_with_experience(), JobData(title="Engineer"),
+            _profile_with_experience(),
+            JobData(title="Engineer"),
         )
     assert field in str(error.value)
     assert value in str(error.value)
@@ -226,28 +284,49 @@ def test_experience_rejects_invalid_profile_index(index):
     with pytest.raises(ValueError, match="profile_index"):
         _validate_grounded_content(
             _output_with_experience(_structured_experience(profile_index=index)),
-            _profile_with_experience(), JobData(title="Engineer"),
+            _profile_with_experience(),
+            JobData(title="Engineer"),
         )
 
 
 @pytest.mark.parametrize(
     ("descriptions", "evidence", "reason"),
     [
-        (["Delivered patient care"], [[]], "no evidence provided"),
+        (["Delivered patient care"], [[]], "no evidence was provided"),
         (["Delivered patient care"], [["patient care"]], "patient care"),
-        (["Managed patient care"], [["Delivered patient care"]], "Managed"),
         (["Delivered patient care"], [], "1 items, 0 evidence lists"),
     ],
 )
-def test_experience_rejects_unsupported_description_with_details(descriptions, evidence, reason):
+def test_experience_rejects_missing_or_unsupported_evidence(descriptions, evidence, reason):
     with pytest.raises(ValueError) as error:
         _validate_grounded_content(
-            _output_with_experience(_structured_experience(
-                descriptions=descriptions, description_evidence=evidence
-            )),
-            _profile_with_experience(), JobData(title="Engineer"),
+            _output_with_experience(_structured_experience(descriptions=descriptions, description_evidence=evidence)),
+            _profile_with_experience(),
+            JobData(title="Engineer"),
         )
     assert reason in str(error.value)
+
+
+def test_experience_accepts_english_translation_with_exact_french_evidence():
+    profile = UserProfile(
+        WorkExperiences=[
+            WorkExperience(
+                Company="ACME",
+                RealisationDescription=["A dirigé une équipe de 10 développeurs."],
+            )
+        ]
+    )
+    output = _output_with_experience(
+        _structured_experience(
+            company="ACME",
+            start_date=None,
+            end_date=None,
+            descriptions=["Led a team of 10 developers."],
+            description_evidence=[["A dirigé une équipe de 10 développeurs."]],
+        )
+    )
+
+    _validate_grounded_content(output, profile, JobData(title="Engineer"))
 
 
 def test_experience_accepts_absent_company_and_dates_if_profile_omits_them():
@@ -273,15 +352,22 @@ async def test_experience_retry_receives_details_and_renders_valid_fields(monkey
     assert "Wrong Hospital" in calls[1]
     assert "company" in calls[1]
     assert result.experience == [
-        "Community Care Lead | Care Hospital | 2020 - 2023",
-        "Delivered patient care",
+        TailoredExperience(
+            company="Care Hospital",
+            title="Community Care Lead",
+            start_date="2020",
+            end_date="2023",
+            descriptions=["Delivered patient care"],
+        )
     ]
 
 
 def test_cv_grounding_accepts_realisation_descriptions_as_experience_evidence():
     output = _output_with_experience(
         _structured_experience(
-            company=None, start_date=None, end_date=None,
+            company=None,
+            start_date=None,
+            end_date=None,
             descriptions=["Delivered a working engine"],
             description_evidence=[["Delivered a working engine"]],
         )
@@ -308,9 +394,7 @@ def test_cv_grounding_accepts_education_location_and_completion():
     )
     profile = UserProfile(
         Summary="Python engineer",
-        Education=[
-            Education(Institution="University", Location="London", Degree="MSc", Completed=True)
-        ],
+        Education=[Education(Institution="University", Location="London", Degree="MSc", Completed=True)],
     )
     job = JobData(title="Engineer")
 
@@ -385,7 +469,9 @@ async def test_tailored_cv_summary_does_not_require_grounding_or_evidence(monkey
         return output
 
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
-    result = await cv_tailoring.build_tailored_cv(UserProfile(Summary="Python engineer"), JobData(title="Engineer"), None)
+    result = await cv_tailoring.build_tailored_cv(
+        UserProfile(Summary="Python engineer"), JobData(title="Engineer"), None
+    )
 
     assert result.summary == "Award-winning Rust architect"
     assert len(calls) == 1
@@ -405,3 +491,18 @@ def test_non_summary_sections_still_require_supported_evidence(section, evidence
 
     with pytest.raises(ValueError, match="unsupported"):
         _validate_grounded_content(output, UserProfile(Summary="Python engineer"), JobData(title="Engineer"))
+
+
+def test_education_validation_error_explains_the_claim_and_source_values():
+    output = _output_with_skills([])
+    output.education = ["Master of Science"]
+    output.education_evidence = [["true"]]
+    profile = UserProfile(Education=[Education(Degree="Bachelor of Science")])
+
+    with pytest.raises(ValueError) as error:
+        _validate_grounded_content(output, profile, JobData(title="Engineer"))
+
+    message = str(error.value)
+    assert "Master of Science" in message
+    assert "true" in message
+    assert "Bachelor of Science" in message

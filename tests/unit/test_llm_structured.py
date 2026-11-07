@@ -15,7 +15,8 @@ class ExampleOutput(BaseModel):
 
 
 @pytest.mark.asyncio
-async def test_structured_call_uses_operation_model_and_validates_response(monkeypatch):
+@pytest.mark.parametrize("operation", ["job_matching", "cover_letter_tailoring"])
+async def test_structured_call_uses_operation_model_and_validates_response(monkeypatch, operation):
     captured = {}
 
     class Response:
@@ -39,11 +40,11 @@ async def test_structured_call_uses_operation_model_and_validates_response(monke
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(llm_structured, "AsyncOpenAI", Client)
 
-    result = await call_openai_structured("system", "user", ExampleOutput, operation="job_matching")
+    result = await call_openai_structured("system", "user", ExampleOutput, operation=operation)
 
     assert result.value == "valid"
     assert captured["client"] == {"api_key": "test-key", "timeout": llm_structured.OPENAI_TIMEOUT_SECONDS}
-    assert captured["request"]["model"] == llm_structured.OPENAI_MODELS["job_matching"]
+    assert captured["request"]["model"] == llm_structured.OPENAI_MODELS[operation]
     assert captured["request"]["instructions"] == "system"
     assert captured["request"]["input"] == "user"
     assert captured["request"]["text_format"] is ExampleOutput
@@ -162,9 +163,11 @@ async def test_structured_call_logs_only_operation_metadata(monkeypatch, caplog)
 
     await call_openai_structured("system", "candidate sensitive resume", ExampleOutput, operation="job_normalizer")
 
-    record = next(record for record in caplog.records if record.message == "Structured provider completed")
+    record = next(record for record in caplog.records if record.message.startswith("Structured provider completed"))
     assert record.operation == "job_normalizer"
     assert record.model == llm_structured.OPENAI_MODELS["job_normalizer"]
     assert isinstance(record.duration_ms, int)
+    assert "operation=job_normalizer" in record.getMessage()
+    assert f"model={record.model}" in record.getMessage()
     assert "secret-key" not in caplog.text
     assert "candidate sensitive resume" not in caplog.text

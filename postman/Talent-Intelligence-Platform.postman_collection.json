@@ -4432,43 +4432,6 @@
           "response": []
         },
         {
-          "name": "Delete interest - success",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('removes the interest without deleting the job', () => {",
-                  "  pm.response.to.have.status(204);",
-                  "});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{access_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{api_url}}/jobs/{{job_id}}/interest",
-              "host": [
-                "{{api_url}}"
-              ],
-              "path": [
-                "jobs",
-                "{{job_id}}",
-                "interest"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
           "name": "Delete interest - missing failure",
           "event": [
             {

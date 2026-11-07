@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
-from profile.profile_service import consolidate_profile_fragments
 
+from candidate_profile.profile_service import consolidate_profile_fragments
 from matching.job_matching import build_match_result
 from matching.llm_matching import ItemMatching, JobData, LlmMatchOutput, MatchAnalysis
 from shared.models import Job

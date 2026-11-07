@@ -1,10 +1,24 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import DateTime, case, cast, delete, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+import shared.queue as background_queue
+from api.openapi import error_responses
+from api.schemas.requests.jobs import JobNormalizeRequest
+from api.schemas.responses.jobs import (
+    InterestItem,
+    InterestJobHeader,
+    InterestsPage,
+    JobDetailResponse,
+    JobInterestResponse,
+    JobNormalizationResponse,
+    JobSummaryResponse,
+    NormalizedJobHeader,
+    NormalizedJobsResponse,
+)
 from auth.security import get_current_user
 from jobs.interest_service import contains_pattern, ensure_interest, list_interests, remove_interest
 from jobs.job_service import normalize_job_content
@@ -18,17 +32,9 @@ from shared.models import (
     ProcessingJobType,
     User,
 )
-from shared.schemas import (
-    InterestItem,
-    InterestJobHeader,
-    InterestsPage,
-    JobNormalizeOut,
-    JobNormalizeRequest,
-    NormalizedJobHeader,
-    NormalizedJobsResponse,
-)
+from shared.retry import is_transient_failure
 
-router = APIRouter(prefix="/jobs", tags=["jobs"])
+router = APIRouter(prefix="/jobs")
 logger = logging.getLogger("tip-api")
 
 SYSTEM_PROMPT = (
@@ -43,8 +49,11 @@ async def _run_job_normalization(
     processing_job_id: str,
     job_id: str,
     client_metadata: dict[str, str | None] | None = None,
+    *,
+    db: Session | None = None,
+    retry_transient: bool = False,
 ) -> None:
-    db = SessionLocal()
+    db = db if db is not None else SessionLocal()
     try:
         processing_job = db.get(ProcessingJob, processing_job_id)
         job = db.get(Job, job_id)
@@ -65,9 +74,11 @@ async def _run_job_normalization(
         processing_job.result_id = job.id
         ensure_interest(db, processing_job.user_id, job.id)
         db.commit()
-    except Exception:
+    except Exception as exc:
         logger.exception("Job normalization failed", extra={"processing_job_id": processing_job_id})
         db.rollback()
+        if retry_transient and is_transient_failure(exc):
+            raise
         if processing_job is not None:
             processing_job = db.get(ProcessingJob, processing_job_id)
             job = db.get(Job, job_id)
@@ -80,10 +91,18 @@ async def _run_job_normalization(
         db.close()
 
 
-@router.post("/normalize", status_code=202, response_model=JobNormalizeOut)
-def normalize_job(
+@router.post(
+    "/normalize",
+    status_code=202,
+    response_model=JobNormalizationResponse,
+    response_model_exclude_unset=True,
+    summary="Normalize a job posting",
+    description="Queues normalization of a job posting or returns the existing job for a previously seen URL.",
+    tags=["Jobs"],
+    responses=error_responses(401, 422, 500, 502, 503),
+)
+async def normalize_job(
     payload: JobNormalizeRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -93,6 +112,7 @@ def normalize_job(
             ensure_interest(db, current_user.id, existing.id)
             db.commit()
         return {"id": existing.id, "status": "existing"}
+    queue = await background_queue.connect_queue()
     job = Job(
         url=payload.url,
         title=payload.title if payload.title is not None else "",
@@ -104,16 +124,15 @@ def normalize_job(
     )
     db.add(job)
     processing_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.JOB_NORMALIZE)
-    db.add(processing_job)
-    db.commit()
-    db.refresh(job)
-    db.refresh(processing_job)
-    background_tasks.add_task(
-        _run_job_normalization,
-        processing_job.id,
-        job.id,
-        {"title": payload.title, "company": payload.company, "location": payload.location},
-    )
+    try:
+        db.flush()
+        outbox = background_queue.persist_work(db, processing_job, "job_normalize", {
+            "job_id": job.id,
+            "client_metadata": {"title": payload.title, "company": payload.company, "location": payload.location},
+        })
+        await background_queue.publish_work(queue, db, outbox)
+    finally:
+        await queue.aclose()
     return {
         "id": job.id,
         "status": "processing",
@@ -124,15 +143,27 @@ def normalize_job(
     }
 
 
-@router.get("")
+@router.get(
+    "",
+    response_model=list[JobSummaryResponse],
+    status_code=200,
+    summary="List saved jobs",
+    description="Lists jobs with optional title, employer, location, and saved-date filters.",
+    tags=["Jobs"],
+    responses=error_responses(401, 422, 500),
+)
 def list_jobs(
-    title: str | None = None,
-    company: str | None = None,
-    location: str | None = None,
-    saved_after: str | None = None,
-    saved_before: str | None = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=100),
+    title: str | None = Query(default=None, description="Case-insensitive job-title filter.", examples=["Engineer"]),
+    company: str | None = Query(default=None, description="Case-insensitive employer filter.", examples=["Example Co"]),
+    location: str | None = Query(default=None, description="Case-insensitive location filter.", examples=["Remote"]),
+    saved_after: str | None = Query(
+        default=None, description="Include jobs saved on or after this date.", examples=["2026-10-01"]
+    ),
+    saved_before: str | None = Query(
+        default=None, description="Include jobs saved on or before this date.", examples=["2026-10-31"]
+    ),
+    page: int = Query(1, ge=1, description="One-based page number.", examples=[1]),
+    limit: int = Query(50, ge=1, le=100, description="Maximum jobs per page.", examples=[50]),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -173,16 +204,24 @@ def _posting_date_order_expression(db: Session):
     raise RuntimeError(f"Unsupported database dialect for posting-date ordering: {dialect_name}")
 
 
-@router.get("/normalized", response_model=NormalizedJobsResponse)
+@router.get(
+    "/normalized",
+    response_model=NormalizedJobsResponse,
+    status_code=200,
+    summary="List normalized jobs",
+    description="Lists completed normalized jobs with compact headers and pagination.",
+    tags=["Jobs"],
+    responses=error_responses(401, 422, 500),
+)
 def list_normalized_jobs(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
+    page: int = Query(1, ge=1, description="One-based page number.", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Maximum jobs per page.", examples=[20]),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-    title: str | None = None,
-    company: str | None = None,
-    location: str | None = None,
-    source: str | None = None,
+    title: str | None = Query(default=None, description="Case-insensitive title filter.", examples=["Engineer"]),
+    company: str | None = Query(default=None, description="Case-insensitive employer filter.", examples=["Example Co"]),
+    location: str | None = Query(default=None, description="Case-insensitive location filter.", examples=["Remote"]),
+    source: str | None = Query(default=None, description="Exact job source filter.", examples=["CompanyWebsite"]),
 ):
     filters = [Job.status == "completed"]
     for value, column in (
@@ -192,6 +231,8 @@ def list_normalized_jobs(
     ):
         if value and value.strip():
             filters.append(column.ilike(contains_pattern(value), escape="\\"))
+    if source and source.strip():
+        filters.append(Job.source == source)
 
     total = db.scalar(select(func.count(Job.id)).where(*filters)) or 0
     posting_date_order = _posting_date_order_expression(db)
@@ -219,13 +260,21 @@ def list_normalized_jobs(
     return NormalizedJobsResponse(items=items, total=total, page=page, limit=limit)
 
 
-@router.get("/interests", response_model=InterestsPage)
+@router.get(
+    "/interests",
+    response_model=InterestsPage,
+    status_code=200,
+    summary="List saved interests",
+    description="Lists the authenticated user's saved job interests with filters and pagination.",
+    tags=["Jobs"],
+    responses=error_responses(401, 422, 500),
+)
 def list_my_interests(
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-    title: str | None = None,
-    company: str | None = None,
-    location: str | None = None,
+    page: int = Query(1, ge=1, description="One-based page number.", examples=[1]),
+    limit: int = Query(20, ge=1, le=100, description="Maximum interests per page.", examples=[20]),
+    title: str | None = Query(default=None, description="Case-insensitive title filter.", examples=["Engineer"]),
+    company: str | None = Query(default=None, description="Case-insensitive employer filter.", examples=["Example Co"]),
+    location: str | None = Query(default=None, description="Case-insensitive location filter.", examples=["Remote"]),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -252,7 +301,15 @@ def list_my_interests(
     return InterestsPage(items=items, total=total, page=page, limit=limit, total_pages=-(-total // limit))
 
 
-@router.get("/{job_id}")
+@router.get(
+    "/{job_id}",
+    response_model=JobDetailResponse,
+    status_code=200,
+    summary="Get a job",
+    description="Returns normalized job details and the authenticated user's access, interest, and tracking state.",
+    tags=["Jobs"],
+    responses=error_responses(401, 404, 500),
+)
 def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.get(Job, job_id)
     interested = db.query(JobInterest).filter_by(user_id=current_user.id, job_id=job_id).first() is not None
@@ -279,11 +336,19 @@ def get_job(job_id: str, current_user: User = Depends(get_current_user), db: Ses
         "created_at": job.created_at,
         "has_write_access": job.submitter_id == current_user.id or current_user.role == "admin",
         "is_interested": interested,
-        "is_tracked": is_tracked
+        "is_tracked": is_tracked,
     }
 
 
-@router.post("/{job_id}/interest", status_code=201)
+@router.post(
+    "/{job_id}/interest",
+    response_model=JobInterestResponse,
+    status_code=201,
+    summary="Save job interest",
+    description="Creates or reuses the authenticated user's interest in a completed job.",
+    tags=["Jobs"],
+    responses=error_responses(401, 404, 409, 500),
+)
 def interest(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.get(Job, job_id)
     if not job:
@@ -299,14 +364,28 @@ def interest(job_id: str, current_user: User = Depends(get_current_user), db: Se
     return {"id": item.id, "status": "created" if created else "existing"}
 
 
-@router.delete("/{job_id}/interest", status_code=204)
+@router.delete(
+    "/{job_id}/interest",
+    status_code=204,
+    summary="Remove saved interest",
+    description="Removes the authenticated user's saved interest in a job.",
+    tags=["Jobs"],
+    responses=error_responses(401, 404, 500),
+)
 def remove_job_interest(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if not remove_interest(db, current_user.id, job_id):
         raise HTTPException(404, "Interest not found")
     db.commit()
 
 
-@router.delete("/{job_id}", status_code=204)
+@router.delete(
+    "/{job_id}",
+    status_code=204,
+    summary="Delete a job",
+    description="Deletes a job when the authenticated user is its submitter or an administrator.",
+    tags=["Jobs"],
+    responses=error_responses(401, 403, 404, 500),
+)
 def delete_job(job_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     job = db.get(Job, job_id)
     if not job:

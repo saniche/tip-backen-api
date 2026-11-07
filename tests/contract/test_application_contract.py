@@ -299,7 +299,7 @@ def test_status_updates_append_only_when_changed(client, database_session):
 
     changed = client.patch(status_url, headers=headers, json={"status": "Interview", "note": "Scheduled"})
     unchanged = client.patch(status_url, headers=headers, json={"status": "Interview", "note": "Ignored"})
-    invalid = client.patch(status_url, headers=headers, json={"status": "Rejected"})
+    invalid = client.patch(status_url, headers=headers, json={"status": "UnknownStatus"})
 
     assert changed.status_code == 200
     assert changed.json()["status"] == "Interview"
@@ -313,7 +313,19 @@ def test_status_updates_append_only_when_changed(client, database_session):
 
 @pytest.mark.parametrize(
     "status",
-    ["Registered", "Applied", "Contacted", "Screening", "Interview", "OnHold", "Closed"],
+    [
+        "NotStarted",
+        "Registered",
+        "Applied",
+        "Contacted",
+        "Screening",
+        "Interview",
+        "OnHold",
+        "Closed",
+        "Rejected",
+        "Offered",
+        "Accepted",
+    ],
 )
 def test_each_supported_application_status_is_accepted(client, database_session, status):
     headers, _ = register(client, database_session, f"application-status-{status}@example.com")

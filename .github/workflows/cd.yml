@@ -1,0 +1,59 @@
+name: CD
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-api
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  postman:
+    uses: ./.github/workflows/postman.yml
+    secrets: inherit
+
+  deploy:
+    needs: [ci, postman]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/saniche/tip-backend-api:latest
+            ghcr.io/saniche/tip-backend-api:${{ github.sha }}
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -eu
+            cd /opt/tip
+            docker compose pull api worker
+            docker compose run --rm api alembic upgrade head
+            docker compose up -d api worker
+            attempt=0
+            until curl -fsS http://127.0.0.1:8000/health && docker compose exec -T worker python -m arq --check shared.worker.WorkerSettings; do
+              attempt=$((attempt + 1))
+              if [ "$attempt" -ge 12 ]; then
+                echo "API or worker health check failed" >&2
+                exit 1
+              fi
+              sleep 5
+            done
+            docker compose ps --status running --services | grep -Fx worker
+            docker image prune -f

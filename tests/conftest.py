@@ -5,12 +5,11 @@ os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
 
-import profile.profile_builder as profile_builder
-import profile.profile_builder_router as profile_builder_router
-
 import pytest
 from fastapi.testclient import TestClient
 
+import candidate_profile.profile_builder as profile_builder
+import candidate_profile.profile_builder_router as profile_builder_router
 import cover_letter.cover_letter_tailoring as cover_letter_tailoring
 import cv.cv_tailoring as cv_tailoring
 import cv.cv_tailoring_router as cv_tailoring_router
@@ -18,9 +17,12 @@ import jobs.job_normalizer as job_normalizer
 import jobs.job_service as job_service
 import matching.job_matching_router as job_matching_router
 import matching.llm_matching as llm_matching
+import shared.queue as background_queue
 import tailoring.tailoring_router as tailoring_router
 from main import app
 from shared.database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
+from shared.models import ProcessingOutbox
+from shared.worker import _run_handler
 
 
 @pytest.fixture(autouse=True)
@@ -33,6 +35,29 @@ def database():
     Base.metadata.create_all(testing_engine)
     yield
     Base.metadata.drop_all(testing_engine)
+
+
+@pytest.fixture(autouse=True)
+def local_blob_directory(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCAL_BLOB_DIRECTORY", str(tmp_path))
+
+
+@pytest.fixture(autouse=True)
+def eager_background_queue(monkeypatch):
+    class EagerQueue:
+        async def enqueue_job(self, function, job_id, **kwargs):
+            with TestingSessionLocal() as db:
+                work = db.get(ProcessingOutbox, job_id)
+                name, arguments = work.task_name, dict(work.arguments)
+            await _run_handler(name, job_id, arguments, TestingSessionLocal(), False)
+
+        async def aclose(self):
+            pass
+
+    async def connect():
+        return EagerQueue()
+
+    monkeypatch.setattr(background_queue, "connect_queue", connect)
 
 
 @pytest.fixture(autouse=True)

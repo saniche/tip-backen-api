@@ -1,10 +1,10 @@
-import profile.profile_builder_router as profile_builder_router
 import time
 from io import BytesIO
-from profile.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
 
 from docx import Document
 
+import candidate_profile.profile_builder_router as profile_builder_router
+from candidate_profile.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
 from shared.llm_structured import StructuredProviderError
 
 
@@ -229,6 +229,7 @@ def test_profile_processing_persists_complete_structured_profile(client, monkeyp
     assert data["work_experiences"] == [
         {
             "Company": "Analytical Engines",
+            "Location": None,
             "Title": "Engineer",
             "StartDate": None,
             "EndDate": None,

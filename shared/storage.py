@@ -7,46 +7,63 @@ API stays stateless across instances/restarts.
 import hashlib
 import hmac
 import os
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import quote
 
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.storage.blob import BlobSasPermissions, BlobServiceClient, ContentSettings, generate_blob_sas
 
 CONTAINER_NAME = os.environ.get("CV_BLOB_CONTAINER", "tailored-cvs")
 _connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
 
-_LOCAL_BLOB_STORE: dict[str, str] = {}
-
-try:
-    _blob_service_client = BlobServiceClient.from_connection_string(_connection_string)
-except Exception:  # pragma: no cover - fallback for local/dev runs when emulator is unavailable
+if _connection_string == "UseDevelopmentStorage=true":
     _blob_service_client = None
+else:
+    _blob_service_client = BlobServiceClient.from_connection_string(_connection_string)
 
 
 def _use_local_blob_store() -> bool:
-    return _blob_service_client is None or _connection_string == "UseDevelopmentStorage=true"
+    return _connection_string == "UseDevelopmentStorage=true"
+
+
+def _local_blob_path(blob_path: str) -> Path:
+    root = Path(os.environ.get("LOCAL_BLOB_DIRECTORY", ".local-blobs")).resolve()
+    path = (root / blob_path).resolve()
+    if path == root or not path.is_relative_to(root):
+        raise ValueError("Invalid local blob path")
+    return path
 
 
 def _upload_local_blob(blob_path: str, content: str) -> str:
-    _LOCAL_BLOB_STORE[blob_path] = content
+    path = _local_blob_path(blob_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as temp:
+            temp_path = Path(temp.name)
+            temp.write(content)
+        os.replace(temp_path, path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
     return blob_path
 
 
 def _download_local_blob(blob_path: str) -> str:
-    if blob_path not in _LOCAL_BLOB_STORE:
-        raise FileNotFoundError(f"Blob not found: {blob_path}")
-    return _LOCAL_BLOB_STORE[blob_path]
+    return _local_blob_path(blob_path).read_text(encoding="utf-8")
 
 
 def _get_container_client():
     if _use_local_blob_store():
         return None
     container_client = _blob_service_client.get_container_client(CONTAINER_NAME)
-    try:
-        if not container_client.exists():
+    if not container_client.exists():
+        try:
             container_client.create_container()
-    except Exception:
-        return None
+        except ResourceExistsError:
+            pass
     return container_client
 
 
@@ -76,9 +93,12 @@ def download_markdown(blob_path: str) -> str:
 def delete_blob(blob_path: str) -> None:
     container_client = _get_container_client()
     if container_client is None:
-        _LOCAL_BLOB_STORE.pop(blob_path, None)
+        _local_blob_path(blob_path).unlink(missing_ok=True)
         return
-    container_client.delete_blob(blob_path)
+    try:
+        container_client.delete_blob(blob_path)
+    except ResourceNotFoundError:
+        pass
 
 
 def build_blob_path(user_id: str, tailored_cv_id: str, filename: str) -> str:

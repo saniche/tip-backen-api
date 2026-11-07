@@ -44,6 +44,24 @@ def test_list_marks_latest_as_default_and_hides_data(client):
     assert all("data" not in item for item in items)
 
 
+def test_current_profile_label_is_returned_by_update_and_get(client):
+    headers = _auth(client, "profile-label@example.com")
+
+    updated = client.put(
+        "/api/v1/profile",
+        headers=headers,
+        json={"data": {"summary": "Python engineer"}, "label": "Engineering profile"},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["label"] == "Engineering profile"
+
+    current = client.get("/api/v1/profile", headers=headers)
+
+    assert current.status_code == 200
+    assert current.json()["label"] == "Engineering profile"
+
+
 def test_patch_updates_label_and_data_without_changing_default(client):
     headers = _auth(client, "patch@example.com")
     user_id = _user_id(client, headers)

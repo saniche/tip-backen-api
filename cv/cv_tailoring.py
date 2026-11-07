@@ -3,8 +3,7 @@ from dataclasses import asdict, dataclass, field
 
 from pydantic import BaseModel, ConfigDict
 
-from profile.serialization import user_profile_to_dict
-from shared.grounding import unsupported_terms
+from candidate_profile.serialization import user_profile_to_dict
 from shared.llm_structured import call_openai_structured
 
 
@@ -13,10 +12,21 @@ class GroundingError(ValueError):
 
 
 @dataclass
+class TailoredExperience:
+    company: str | None = None
+    location: str | None = None
+    title: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    summary: str | None = None
+    descriptions: list[str] = field(default_factory=list)
+
+
+@dataclass
 class TailoredCv:
     target_role: str = ""
     summary: str = ""
-    experience: list[str] = field(default_factory=list)
+    experience: list[TailoredExperience | str] = field(default_factory=list)
     education: list[str] = field(default_factory=list)
     certifications: list[str] = field(default_factory=list)
     skills: list[str] = field(default_factory=list)
@@ -62,8 +72,8 @@ CV_TAILORING_SYSTEM_PROMPT = (
     "from that same profile experience. Provide education_evidence and certification_evidence "
     "for each item using complete source fields from the corresponding profile section. "
     "Evidence must contain only the exact field value, without its field name or surrounding quotes. "
-    "Reuse the wording of cited sources closely in descriptions; do not add unsupported numbers, "
-    "seniority, leadership or employer claims."
+    "Write descriptions in the requested language, translating source evidence when needed without adding facts. "
+    "Do not add unsupported numbers, seniority, leadership or employer claims."
 )
 
 STYLE_REFERENCE_ADDENDUM = (
@@ -103,29 +113,31 @@ def _source_values(profile) -> tuple[set[str], set[str]]:
 
 def _validate_evidence(values: list[str], sources: set[str], field_name: str) -> None:
     if not values:
-        raise GroundingError(f"Tailored CV contains unsupported {field_name} evidence: no evidence provided")
+        raise GroundingError(f"no evidence was provided; available profile {field_name} values are {sorted(sources)!r}")
     unsupported = [value for value in values if value not in sources]
     if unsupported:
-        raise GroundingError(f"Tailored CV contains unsupported {field_name} evidence: {unsupported!r}")
-
-
-def _validate_claim_against_evidence(value: str, evidence: list[str], field_name: str) -> None:
-    unsupported = unsupported_terms(value, evidence)
-    if unsupported:
-        details = ", ".join(sorted(unsupported)[:5])
-        raise GroundingError(f"Tailored CV contains unsupported {field_name} content: {details}")
+        raise GroundingError(
+            f"unsupported cited evidence {unsupported!r}: not present in the profile's "
+            f"{field_name} values {sorted(sources)!r}"
+        )
 
 
 def _validate_section_evidence(items: list[str], evidence: list[list[str]], sources: set[str], field_name: str) -> None:
     if len(items) != len(evidence):
+        if len(items) > len(evidence):
+            mismatch = f"generated items without evidence: {items[len(evidence) :]!r}"
+        else:
+            mismatch = f"evidence without generated items: {evidence[len(items) :]!r}"
         raise GroundingError(
             f"Tailored CV {field_name} evidence does not match generated items: "
-            f"{len(items)} items, {len(evidence)} evidence lists"
+            f"{len(items)} items, {len(evidence)} evidence lists; {mismatch}"
         )
-    for index, (item, item_evidence) in enumerate(zip(items, evidence, strict=True)):
+    for index, item_evidence in enumerate(evidence):
         label = f"{field_name} item {index}"
-        _validate_evidence(item_evidence, sources, label)
-        _validate_claim_against_evidence(item, item_evidence, label)
+        try:
+            _validate_evidence(item_evidence, sources, field_name)
+        except GroundingError as exc:
+            raise GroundingError(f"Tailored CV {label} {items[index]!r} failed evidence validation: {exc}") from exc
 
 
 def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> None:
@@ -137,9 +149,7 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
         if item.profile_index < 0 or item.profile_index >= len(experiences):
             raise GroundingError(f"Tailored CV has invalid experience profile_index: {item.profile_index}")
         source = experiences[item.profile_index]
-        for field_name, source_name in (
-            ("company", "Company"), ("start_date", "StartDate"), ("end_date", "EndDate")
-        ):
+        for field_name, source_name in (("company", "Company"), ("start_date", "StartDate"), ("end_date", "EndDate")):
             value = getattr(item, field_name)
             expected = getattr(source, source_name)
             if value != expected:
@@ -148,8 +158,7 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
                     f"{item.profile_index}: received {value!r}, expected {expected!r}"
                 )
         has_responsibilities = any(
-            value and value.strip()
-            for value in (source.Summary, *(source.RealisationDescription or []))
+            value and value.strip() for value in (source.Summary, *(source.RealisationDescription or []))
         )
         if not has_responsibilities and ((item.summary and item.summary.strip()) or item.descriptions):
             raise GroundingError(
@@ -160,17 +169,15 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
             "Summary": source.Summary,
             "Title": source.Title,
             "Company": source.Company,
+            "Location": source.Location,
             "StartDate": source.StartDate,
             "EndDate": source.EndDate,
         }
         experience_sources = {value for value in source_fields.values() if value}
         experience_sources.update(value for value in (source.RealisationDescription or []) if value)
-        field_representations = {
-            f"{name}={value!r}": value for name, value in source_fields.items() if value
-        }
+        field_representations = {f"{name}={value!r}": value for name, value in source_fields.items() if value}
         field_representations.update(
-            (f"RealisationDescription={value!r}", value)
-            for value in (source.RealisationDescription or []) if value
+            (f"RealisationDescription={value!r}", value) for value in (source.RealisationDescription or []) if value
         )
         evidence = [
             [
@@ -180,11 +187,15 @@ def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> N
             for item_evidence in item.description_evidence
         ]
         _validate_section_evidence(
-            item.descriptions, evidence, experience_sources,
+            item.descriptions,
+            evidence,
+            experience_sources,
             f"experience at profile index {item.profile_index}",
         )
     _validate_section_evidence(output.education, output.education_evidence, education_sources, "education")
-    _validate_section_evidence(output.certifications, output.certification_evidence, certification_sources, "certifications")
+    _validate_section_evidence(
+        output.certifications, output.certification_evidence, certification_sources, "certifications"
+    )
 
 
 async def build_tailored_cv(
@@ -224,17 +235,23 @@ async def build_tailored_cv(
         except GroundingError as exc:
             last_error = exc
             continue
+        experiences = getattr(profile, "WorkExperiences", []) or []
         experience = []
         for item in output.experience:
-            dates = " - ".join(value for value in (item.start_date, item.end_date) if value)
-            header = " | ".join(value for value in (item.title, item.company, dates) if value)
-            if header:
-                experience.append(header)
-            if item.summary and item.summary.strip():
-                experience.append(item.summary)
-            experience.extend(item.descriptions)
+            source = experiences[item.profile_index]
+            experience.append(
+                TailoredExperience(
+                    company=item.company,
+                    location=source.Location,
+                    title=item.title,
+                    start_date=item.start_date,
+                    end_date=item.end_date,
+                    summary=item.summary,
+                    descriptions=item.descriptions,
+                )
+            )
         return TailoredCv(
             experience=experience,
-            **output.model_dump(exclude={"experience", "education_evidence", "certification_evidence"})
+            **output.model_dump(exclude={"experience", "education_evidence", "certification_evidence"}),
         )
     raise last_error

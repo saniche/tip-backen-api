@@ -1,15 +1,16 @@
 import logging
-import profile.profile_builder_router as profile_builder_router
-import profile.profiles_router as profiles_router
 import uuid
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 import applications.router as applications_router
 import auth.router as auth_router
+import candidate_profile.profile_builder_router as profile_builder_router
+import candidate_profile.profiles_router as profiles_router
 import cv.cv_tailoring_router as cv_tailoring_router
 import cv.download_router as download_router
 import defaults.defaults_router as defaults_router
@@ -18,12 +19,51 @@ import matching.job_matching_router as job_matching_router
 import shared.config as config  # noqa: F401
 import shared.processing_jobs_router as processing_jobs_router
 import tailoring.tailoring_router as tailoring_router
+from api.openapi import generate_operation_id
+from api.schemas.common.errors import ErrorResponse
+from api.schemas.responses.health import HealthResponse, ReadinessResponse
 from shared.database import Base, engine
 from shared.errors import AppException, translate_exception
+from shared.queue import job_timeout, max_attempts, queue_name, redis_settings
 
-app = FastAPI(title="Job Search Aggregator API")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+
+OPENAPI_TAGS = [
+    {"name": "Auth", "description": "Account registration and token creation."},
+    {"name": "Applications", "description": "Track job applications and status history."},
+    {"name": "Jobs", "description": "Normalize, search, and save job postings."},
+    {"name": "Matching", "description": "Compare profiles with jobs and manage match reports."},
+    {"name": "Profiles", "description": "Manage profile data and profile versions."},
+    {"name": "Profile Processing", "description": "Create profile sessions and upload source documents."},
+    {"name": "Processing Jobs", "description": "Poll background processing status and results."},
+    {"name": "CV Tailoring", "description": "Generate and manage tailored CV documents."},
+    {"name": "Tailoring", "description": "Generate CVs and optional cover letters for selected jobs."},
+    {"name": "Documents", "description": "Manage default documents and download generated files."},
+    {"name": "Health", "description": "Service health and readiness checks."},
+]
+
+app = FastAPI(
+    title="Talent Intelligence Platform API",
+    version="1.0.0",
+    description="Versioned API for profiles, job normalization, matching, applications, and tailored documents.",
+    contact={"name": "API maintainers"},
+    license_info={"name": "Not specified"},
+    openapi_tags=OPENAPI_TAGS,
+    generate_unique_id_function=generate_operation_id,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
 
 logger = logging.getLogger("tip-api")
+
+max_attempts()
+job_timeout()
+queue_name()
+redis_settings()
 
 # Dev convenience only — use Alembic migrations instead of create_all once this runs anywhere real.
 Base.metadata.create_all(bind=engine)
@@ -36,6 +76,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.middleware("http")
 async def request_context(request: Request, call_next):
@@ -99,13 +140,50 @@ async def http_error(request: Request, exc: HTTPException):
     )
 
 
-@app.get("/health")
+@app.exception_handler(RequestValidationError)
+async def request_validation_error(request: Request, exc: RequestValidationError):
+    request_id = request.headers.get("X-Request-ID")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Request validation failed",
+                "details": {
+                    "errors": [
+                        {"location": list(error["loc"]), "message": error["msg"], "type": error["type"]}
+                        for error in exc.errors()
+                    ]
+                },
+                "request_id": request_id,
+            }
+        },
+    )
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    status_code=200,
+    summary="Check service health",
+    description="Returns a simple health indicator for the running API process.",
+    tags=["Health"],
+    responses={500: {"model": ErrorResponse, "description": "Unexpected service failure."}},
+)
 def health():
     # Health check endpoint to verify the service is running.
     return {"status": "ok"}
 
 
-@app.get("/ready")
+@app.get(
+    "/ready",
+    response_model=ReadinessResponse,
+    status_code=200,
+    summary="Check service readiness",
+    description="Checks whether the API can reach its configured database.",
+    tags=["Health"],
+    responses={503: {"model": ErrorResponse, "description": "A required service is not ready."}},
+)
 def ready():
     # Readiness check endpoint to verify the service is ready to handle requests.
     # Check if database and other dependencies are ready and accessible.

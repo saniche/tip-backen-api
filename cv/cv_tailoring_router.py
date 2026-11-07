@@ -1,11 +1,16 @@
 import logging
-from profile.serialization import dict_to_user_profile
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+import shared.queue as background_queue
+from api.openapi import error_responses
+from api.schemas.requests.tailoring import CvTailoringRequest
+from api.schemas.responses.processing import ProcessingJobResponse
+from api.schemas.responses.tailoring import CvMetadataResponse
 from auth.security import get_current_user
+from candidate_profile.serialization import dict_to_user_profile
 from cv.cv_service import delete_tailored_record, validate_cv_selection
 from cv.cv_tailoring import GroundingError, build_tailored_cv
 from cv.job_group import merge_jobs
@@ -22,17 +27,19 @@ from shared.models import (
     User,
     UserProfile,
 )
-from shared.schemas import CvTailoringRequest, ProcessingJobOut
+from shared.processing_artifacts import artifact_id, prepare_filenames
+from shared.retry import is_transient_failure
 from shared.storage import build_blob_path, delete_blob, generate_temporary_download_url, upload_markdown
 
-router = APIRouter(tags=["cv-tailoring"])
+router = APIRouter()
 logger = logging.getLogger("tip-api")
 
 
 async def _run_cv_tailoring(
-    proc_job_id: str, user_id: str, matching_ids: list[str], mode: str, output_language: str, request_id: str
+    proc_job_id: str, user_id: str, matching_ids: list[str], mode: str, output_language: str, request_id: str,
+    *, db: Session | None = None, retry_transient: bool = False,
 ) -> None:
-    db = SessionLocal()
+    db = db if db is not None else SessionLocal()
     proc_job = None
     uploaded_blob_paths = []
     try:
@@ -52,7 +59,7 @@ async def _run_cv_tailoring(
             raise ValueError("Matching context not found")
         profile = dict_to_user_profile(profile_row.data)
         selected = matchings if mode == "per_job" else matchings[:1]
-        records = []
+        generated = []
         for matching in selected:
             if mode == "per_job":
                 job = db.get(Job, matching.job_id)
@@ -68,7 +75,14 @@ async def _run_cv_tailoring(
                 scores = [item.score for item in matchings]
                 score = round(sum(scores) / len(scores)) if all(v is not None for v in scores) else None
             tailored = await build_tailored_cv(profile, job_data, match_score=score, output_language=output_language)
+            generated.append((matching, tailored))
+        filenames = prepare_filenames(
+            db, proc_job_id, [suggest_filename(tailored, profile) for _, tailored in generated]
+        )
+        records = []
+        for index, ((matching, tailored), filename) in enumerate(zip(generated, filenames, strict=True)):
             record = TailoredCVRecord(
+                id=artifact_id(proc_job_id, index),
                 matching_id=matching.id,
                 request_id=request_id,
                 user_id=user_id,
@@ -79,13 +93,11 @@ async def _run_cv_tailoring(
             )
             db.add(record)
             db.flush()
-            blob_path = build_blob_path(user_id, record.id, suggest_filename(tailored, profile))
-            upload_markdown(blob_path, render_tailored_cv_markdown(tailored, profile))
+            blob_path = build_blob_path(user_id, record.id, filename)
             uploaded_blob_paths.append(blob_path)
+            upload_markdown(blob_path, render_tailored_cv_markdown(tailored, profile))
             record.blob_path = blob_path
             records.append(record)
-        db.commit()
-
         proc_job.status = ProcessingJobStatus.DONE
         proc_job.result_id = records[0].id
         request = db.get(CVRequest, request_id)
@@ -100,11 +112,9 @@ async def _run_cv_tailoring(
                 delete_blob(blob_path)
             except Exception:  # noqa: BLE001 - original processing failure remains authoritative
                 logger.warning("CV blob cleanup failed", extra={"processing_job_id": proc_job_id})
-        message = (
-            f"CV validation failed: {failure}"
-            if isinstance(failure, GroundingError)
-            else "CV generation failed"
-        )
+        if retry_transient and is_transient_failure(failure):
+            raise
+        message = f"CV validation failed: {failure}" if isinstance(failure, GroundingError) else "CV generation failed"
         proc_job = db.get(ProcessingJob, proc_job_id)
         if proc_job is not None:
             proc_job.status = ProcessingJobStatus.FAILED
@@ -118,10 +128,17 @@ async def _run_cv_tailoring(
         db.close()
 
 
-@router.post("/cv/tailor", status_code=202, response_model=ProcessingJobOut)
-def tailor_cv(
+@router.post(
+    "/cv/tailor",
+    status_code=202,
+    response_model=ProcessingJobResponse,
+    summary="Start CV tailoring",
+    description="Queues a tailored CV for the supplied matching results and returns a processing-job identifier.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 404, 422, 500, 502, 503),
+)
+async def tailor_cv(
     payload: CvTailoringRequest,
-    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -129,28 +146,38 @@ def tailor_cv(
     if any(matching is None or matching.user_id != current_user.id for matching in matchings):
         raise HTTPException(404, "Matching result not found")
 
+    queue = await background_queue.connect_queue()
     proc_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.CV_TAILOR)
     cv_request = CVRequest(
         user_id=current_user.id, matching_ids=payload.matching_ids, mode=payload.mode, status="processing"
     )
     db.add(cv_request)
-    db.add(proc_job)
-    db.commit()
+    try:
+        db.flush()
+        outbox = background_queue.persist_work(db, proc_job, "cv_tailoring", {
+            "user_id": current_user.id,
+            "matching_ids": payload.matching_ids,
+            "mode": payload.mode,
+            "output_language": payload.output_language,
+            "request_id": cv_request.id,
+        })
+        response = ProcessingJobResponse(id=proc_job.id, status=proc_job.status, result_id=proc_job.result_id)
+        await background_queue.publish_work(queue, db, outbox)
+    finally:
+        await queue.aclose()
 
-    background_tasks.add_task(
-        _run_cv_tailoring,
-        proc_job.id,
-        current_user.id,
-        payload.matching_ids,
-        payload.mode,
-        payload.output_language,
-        cv_request.id,
-    )
-
-    return ProcessingJobOut(id=proc_job.id, status=proc_job.status.value, result_id=proc_job.result_id)
+    return response
 
 
-@router.get("/cv")
+@router.get(
+    "/cv",
+    response_model=list[CvMetadataResponse],
+    status_code=200,
+    summary="List tailored CVs",
+    description="Lists completed tailored CVs owned by the authenticated user.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 500, 503),
+)
 def list_cvs(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     cvs = (
         db.execute(
@@ -180,7 +207,15 @@ def list_cvs(current_user: User = Depends(get_current_user), db: Session = Depen
     ]
 
 
-@router.get("/cv/{tailored_cv_id}")
+@router.get(
+    "/cv/{tailored_cv_id}",
+    response_model=CvMetadataResponse,
+    status_code=200,
+    summary="Get a tailored CV",
+    description="Returns metadata and a temporary download URL for an owned completed CV.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 404, 500, 503),
+)
 def get_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     record = db.get(TailoredCVRecord, tailored_cv_id)
     if not record or record.user_id != current_user.id or record.kind != "cv":
@@ -197,7 +232,14 @@ def get_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user), 
     }
 
 
-@router.delete("/cv/{tailored_cv_id}", status_code=204)
+@router.delete(
+    "/cv/{tailored_cv_id}",
+    status_code=204,
+    summary="Delete a tailored CV",
+    description="Deletes an owned tailored CV and its stored document.",
+    tags=["CV Tailoring"],
+    responses=error_responses(401, 404, 500, 503),
+)
 def delete_cv(tailored_cv_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     record = db.get(TailoredCVRecord, tailored_cv_id)
     if not record or record.user_id != current_user.id:

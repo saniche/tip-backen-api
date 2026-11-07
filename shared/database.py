@@ -8,8 +8,10 @@ DATABASE_URL example (Azure Database for PostgreSQL Flexible Server):
 import os
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from db.base import Base as Base
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite+pysqlite:///./jobprocess.db")
 
@@ -26,10 +28,6 @@ testing_engine = create_engine(
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=testing_engine)
-
-
-class Base(DeclarativeBase):
-    pass
 
 
 def get_db():

@@ -5,6 +5,7 @@ import sqlite3
 import subprocess
 import sysconfig
 import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
@@ -87,6 +88,58 @@ def test_migrations_upgrade_and_create_jobs_constraints():
             database_path.unlink(missing_ok=True)
         except PermissionError:
             pass
+
+
+def test_processing_outbox_migration_upgrades_and_downgrades(tmp_path):
+    database_path = tmp_path / "outbox.db"
+    environment = os.environ.copy()
+    environment["DATABASE_URL"] = f"sqlite+pysqlite:///{database_path}"
+
+    def run(*args):
+        result = _run_alembic(environment, *args)
+        assert result.returncode == 0, result.stderr
+
+    def outbox_columns():
+        with sqlite3.connect(database_path) as connection:
+            return {row[1] for row in connection.execute("PRAGMA table_info('processing_outbox')")}
+
+    run("upgrade", "013_tailoring_documents")
+    assert not outbox_columns()
+    run("upgrade", "head")
+    assert outbox_columns() == {
+        "processing_job_id", "task_name", "arguments", "attempts", "last_dispatched_at", "created_at"
+    }
+    run("downgrade", "013_tailoring_documents")
+    assert not outbox_columns()
+
+
+@pytest.mark.skipif(not os.getenv("TEST_POSTGRES_URL"), reason="Set TEST_POSTGRES_URL to a disposable database")
+def test_processing_outbox_migration_on_postgres():
+    from sqlalchemy import create_engine, text
+
+    postgres_url = os.environ["TEST_POSTGRES_URL"]
+    schema = f"test_migrations_{uuid.uuid4().hex}"
+    admin = create_engine(postgres_url)
+    with admin.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema}"'))
+    separator = "&" if "?" in postgres_url else "?"
+    environment = os.environ.copy()
+    environment["DATABASE_URL"] = f"{postgres_url}{separator}options=-csearch_path%3D{schema}"
+    try:
+        result = _run_alembic(environment, "upgrade", "head")
+        assert result.returncode == 0, result.stderr
+        engine = create_engine(environment["DATABASE_URL"])
+        try:
+            with engine.connect() as connection:
+                assert connection.execute(text("SELECT count(*) FROM processing_outbox")).scalar_one() == 0
+        finally:
+            engine.dispose()
+        result = _run_alembic(environment, "downgrade", "013_tailoring_documents")
+        assert result.returncode == 0, result.stderr
+    finally:
+        with admin.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
+        admin.dispose()
 
 
 def test_interest_listing_index_migration_upgrades_and_downgrades():

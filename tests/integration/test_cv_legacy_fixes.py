@@ -27,7 +27,8 @@ def _matches(client, email, count=1):
 
 
 def _blobs(user_id):
-    return [key for key in storage._LOCAL_BLOB_STORE if key.startswith(user_id)]
+    root = storage._local_blob_path(user_id)
+    return [path.relative_to(root.parent).as_posix() for path in root.rglob("*") if path.is_file()]
 
 
 def test_deleting_a_tailored_cv_also_deletes_its_stored_file(client):

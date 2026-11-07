@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 import cover_letter.cover_letter_tailoring as cover_letter_module
@@ -8,7 +9,7 @@ from cover_letter.cover_letter_tailoring import CoverLetterGroundingError
 from shared import storage
 from shared.database import TestingSessionLocal
 from shared.llm_structured import StructuredProviderError
-from shared.models import UserProfile
+from shared.models import CVRequest, UserProfile
 
 API = "/api/v1"
 
@@ -39,7 +40,8 @@ def _detail(client, headers, response):
 
 
 def _blobs(user_id):
-    return [key for key in storage._LOCAL_BLOB_STORE if key.startswith(user_id)]
+    root = storage._local_blob_path(user_id)
+    return [path.relative_to(root.parent).as_posix() for path in root.rglob("*") if path.is_file()]
 
 
 def test_per_job_cv_and_general_cover_letter(client):
@@ -197,26 +199,78 @@ def test_when_everything_fails_the_processing_job_fails_with_a_useful_error(clie
     assert _blobs(user_id) == []
 
 
+def test_cover_letter_provider_failure_logs_safe_details_and_returns_generic_error(client, monkeypatch, caplog):
+    headers, _, jobs = _setup(client, "provider-failure@example.com", job_count=1)
+
+    async def fail_cover_letter(*args, **kwargs):
+        raise StructuredProviderError("External processing failed.")
+
+    monkeypatch.setattr(tailoring_service, "build_cover_letter", fail_cover_letter)
+    caplog.set_level(logging.INFO, logger="tip-api")
+
+    response = _tailor(client, headers, job_ids=jobs, cover_letter={"enabled": True, "mode": "per_job"})
+    detail = _detail(client, headers, response)
+    processing_job_id = response.json()["id"]
+    cover_letter = next(document for document in detail["documents"] if document["kind"] == "cover_letter")
+
+    assert cover_letter["status"] == "failed"
+    assert cover_letter["error"] == "The AI provider could not produce the cover letter; try again"
+    record = next(record for record in caplog.records if record.message.startswith("Tailoring item failed"))
+    assert record.kind == "cover_letter"
+    assert record.processing_job_id == processing_job_id
+    assert record.error_type == "StructuredProviderError"
+    assert record.error_message == "External processing failed."
+    assert f"processing_job_id={processing_job_id}" in record.getMessage()
+    assert "kind=cover_letter" in record.getMessage()
+    assert any(
+        entry.message.startswith("Tailoring item started")
+        and f"processing_job_id={processing_job_id}" in entry.getMessage()
+        and "kind=cover_letter" in entry.getMessage()
+        for entry in caplog.records
+    )
+    assert "External processing failed." in record.getMessage()
+
+
 def test_cv_experience_failure_details_are_only_visible_to_owner(client, monkeypatch):
     headers, _, jobs = _setup(client, "experience-owner@example.com", job_count=1)
     client.put(
-        f"{API}/profile", headers=headers,
-        json={"data": {"WorkExperiences": [{
-            "Title": "Nurse", "Company": "Care Hospital", "StartDate": "2020", "EndDate": "2023",
-            "RealisationDescription": ["Delivered patient care"],
-        }]}},
+        f"{API}/profile",
+        headers=headers,
+        json={
+            "data": {
+                "WorkExperiences": [
+                    {
+                        "Title": "Nurse",
+                        "Company": "Care Hospital",
+                        "StartDate": "2020",
+                        "EndDate": "2023",
+                        "RealisationDescription": ["Delivered patient care"],
+                    }
+                ]
+            }
+        },
     )
 
     async def provider(system, user, schema_model, **kwargs):
         return schema_model(
-            target_role="Python Engineer", summary="Nurse", skills=[], education=[], certifications=[],
-            experience=[{
-                "profile_index": 0, "title": "Community Care Lead", "company": "Care Hospital",
-                "start_date": "2020", "end_date": "2024",
-                "descriptions": ["Delivered patient care"],
-                "description_evidence": [["Delivered patient care"]],
-            }],
-            education_evidence=[], certification_evidence=[],
+            target_role="Python Engineer",
+            summary="Nurse",
+            skills=[],
+            education=[],
+            certifications=[],
+            experience=[
+                {
+                    "profile_index": 0,
+                    "title": "Community Care Lead",
+                    "company": "Care Hospital",
+                    "start_date": "2020",
+                    "end_date": "2024",
+                    "descriptions": ["Delivered patient care"],
+                    "description_evidence": [["Delivered patient care"]],
+                }
+            ],
+            education_evidence=[],
+            certification_evidence=[],
         )
 
     monkeypatch.setattr(cv_module, "call_openai_structured", provider)
@@ -260,3 +314,21 @@ def test_requests_and_documents_are_private_to_their_owner(client):
     assert client.delete(f"{API}/tailoring/documents/{document_id}", headers=other).status_code == 404
     assert client.get(f"{API}/tailoring/requests", headers=other).json() == []
     assert [item["id"] for item in client.get(f"{API}/tailoring/requests", headers=headers).json()] == [detail["id"]]
+
+
+def test_list_tailoring_requests_excludes_requests_without_job_ids(client):
+    headers, user_id, jobs = _setup(client, "requests-list@example.com", job_count=1)
+    with TestingSessionLocal() as db:
+        db.add_all(
+            [
+                CVRequest(user_id=user_id, job_ids=jobs),
+                CVRequest(user_id=user_id, job_ids=[]),
+            ]
+        )
+        db.commit()
+
+    response = client.get(f"{API}/tailoring/requests", headers=headers)
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["job_ids"] == jobs
