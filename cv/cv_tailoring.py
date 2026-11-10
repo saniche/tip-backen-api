@@ -208,7 +208,9 @@ async def build_tailored_cv(
             item, source, (("degree", "Degree"), ("institution", "Institution"), ("year", "Year")), "education"
         )
         rendered = ", ".join(
-            value for value in (source.Degree, source.Institution, source.Year) if value and value.strip()
+            str(value)
+            for value in (source.Degree, source.Institution, source.Year)
+            if value is not None and str(value).strip()
         )
         if rendered:
             education.append(rendered)
