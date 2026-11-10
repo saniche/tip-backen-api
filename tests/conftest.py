@@ -66,7 +66,8 @@ def structured_ai_provider(monkeypatch):
         if operation == "profile_builder":
             return schema_model(
                 Name="Test Candidate", Email="", Phone="", Location="", LinkedIn="", Summary="Python engineer",
-                SoftSkills=[], CoreCompetences=[], Languages=["English"], Certifications=[], WorkExperiences=[], Education=[],
+                SoftSkills=[], CoreCompetences=[], Languages=["English"], Certifications=[],
+                WorkExperiences=[], Education=[],
                 TotalYearsOfExperience=0, PreferredJobTitles=[], PreferredLocations=[],
                 Skills=[{"Name": "Python", "Level": "Intermediate"}], AdditionalInformations=[],
             )
@@ -122,10 +123,16 @@ def structured_ai_provider(monkeypatch):
                 },
             )
         if operation == "cv_tailoring":
+            context = json.loads(user)
+            source = context["profile"].get("WorkExperiences", [])
             return schema_model(
                 target_role="Python Engineer", summary="Python Engineer",
-                experience=[], education=[], certifications=[], skills=["Python"],
-                education_evidence=[], certification_evidence=[],
+                experience=[{
+                    "profile_index": 0, "title": source[0].get("Title") or "Engineer",
+                    "company": source[0].get("Company"), "start_date": source[0].get("StartDate"),
+                    "end_date": source[0].get("EndDate"), "descriptions": [],
+                }] if source else [],
+                education=[], certifications=[], skills=["Python"],
             )
         if operation == "cover_letter_tailoring":
             return schema_model(

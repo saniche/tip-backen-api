@@ -1,7 +1,7 @@
 import time
 
 import cv.cv_tailoring_router as cv_tailoring_router
-from cv.cv_tailoring import GroundingError
+from cv.cv_tailoring import EmptyExperienceError
 from shared import storage
 
 API = "/api/v1"
@@ -11,7 +11,9 @@ def _matches(client, email, count=1):
     token = client.post(f"{API}/auth/register", json={"email": email, "password": "password123"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     user_id = client.put(
-        f"{API}/profile", headers=headers, json={"data": {"summary": "Python engineer", "skills": ["Python"]}}
+        f"{API}/profile", headers=headers, json={"data": {
+            "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+        }}
     ).json()["user_id"]
     jobs = [
         client.post(
@@ -70,7 +72,7 @@ def test_validation_failures_are_reported_with_a_specific_message(client, monkey
     headers, user_id, matchings = _matches(client, "legacy-grounding@example.com")
 
     async def ungrounded(*args, **kwargs):
-        raise GroundingError("Tailored CV contains unsupported experience content: Google")
+        raise EmptyExperienceError("The generated CV has no valid experience entries.")
 
     monkeypatch.setattr(cv_tailoring_router, "build_tailored_cv", ungrounded)
     job = client.post(f"{API}/cv/tailor", headers=headers, json={"matching_id": matchings[0]}).json()
@@ -78,4 +80,4 @@ def test_validation_failures_are_reported_with_a_specific_message(client, monkey
 
     assert status["status"] == "failed"
     assert status["error"].startswith("CV validation failed")
-    assert "unsupported experience content: Google" in status["error"]
+    assert "no valid experience entries" in status["error"]

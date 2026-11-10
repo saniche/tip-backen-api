@@ -1,14 +1,19 @@
 import json
+import logging
+import unicodedata
 from dataclasses import asdict, dataclass, field
+from typing import TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictInt
 
 from candidate_profile.serialization import user_profile_to_dict
 from shared.llm_structured import call_openai_structured
 
+logger = logging.getLogger("tip-api")
 
-class GroundingError(ValueError):
-    """The generated CV contains content that is not backed by the profile or job."""
+
+class EmptyExperienceError(ValueError):
+    """A tailored CV cannot be produced without an experience entry."""
 
 
 @dataclass
@@ -34,14 +39,21 @@ class TailoredCv:
 
 class TailoredExperienceOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    profile_index: int
+    profile_index: StrictInt | None = None
     title: str
     company: str | None
     start_date: str | None
     end_date: str | None
     summary: str | None = None
     descriptions: list[str]
-    description_evidence: list[list[str]]
+
+
+class TailoredEducationOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    profile_index: StrictInt | None = None
+    degree: str | None
+    institution: str | None
+    year: str | None
 
 
 class TailoredCvOutput(BaseModel):
@@ -49,11 +61,9 @@ class TailoredCvOutput(BaseModel):
     target_role: str
     summary: str
     experience: list[TailoredExperienceOutput]
-    education: list[str]
+    education: list[TailoredEducationOutput]
     certifications: list[str]
     skills: list[str]
-    education_evidence: list[list[str]]
-    certification_evidence: list[list[str]]
 
 
 CV_TAILORING_SYSTEM_PROMPT = (
@@ -63,16 +73,12 @@ CV_TAILORING_SYSTEM_PROMPT = (
     "List skills only when they appear in the profile's Skills or SoftSkills; job requirements alone "
     "are not evidence of the candidate's skills. "
     "For each experience, use profile_index as the zero-based index of its source in "
-    "profile.WorkExperiences. Copy company, start_date, and end_date exactly from that entry's "
+    "profile.WorkExperiences. Copy company, start_date, and end_date from that entry's "
     "Company, StartDate, and EndDate, including null values. The experience title may be tailored. "
-    "An experience summary is optional: when useful, write one sentence based only on that "
-    "experience's Summary and RealisationDescription, alongside its descriptions. "
-    "If both fields have no responsibility details, set summary to null and descriptions to an empty list. "
-    "Provide description_evidence for each experience description using complete source fields "
-    "from that same profile experience. Provide education_evidence and certification_evidence "
-    "for each item using complete source fields from the corresponding profile section. "
-    "Evidence must contain only the exact field value, without its field name or surrounding quotes. "
-    "Write descriptions in the requested language, translating source evidence when needed without adding facts. "
+    "For each education entry, use profile_index as the zero-based index of its source in "
+    "profile.Education and copy Degree, Institution, and Year into degree, institution, and year. "
+    "Write a useful experience summary and descriptions using the experience's available details. "
+    "Write descriptions in the requested language without adding facts. "
     "Do not add unsupported numbers, seniority, leadership or employer claims."
 )
 
@@ -84,118 +90,58 @@ STYLE_REFERENCE_ADDENDUM = (
 MAX_STYLE_REFERENCE_CHARS = 6000
 
 
-def _source_values(profile) -> tuple[set[str], set[str]]:
-    education_sources = {
-        value
-        for item in getattr(profile, "Education", []) or []
-        for value in (
-            getattr(item, "Degree", None),
-            getattr(item, "Institution", None),
-            getattr(item, "Field", None),
-            getattr(item, "Year", None),
-            getattr(item, "Location", None),
-            "Completed"
-            if getattr(item, "Completed", None) is True
-            else "Not completed"
-            if getattr(item, "Completed", None) is False
-            else None,
-        )
-        if value
-    }
-    certification_sources = {
-        value
-        for item in getattr(profile, "Certifications", []) or []
-        for value in (item.Name, item.Issuer, item.Year)
-        if value
-    }
-    return education_sources, certification_sources
+def _normalized(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = unicodedata.normalize("NFKD", value.casefold())
+    return " ".join("".join(char for char in text if not unicodedata.combining(char)).split())
 
 
-def _validate_evidence(values: list[str], sources: set[str], field_name: str) -> None:
-    if not values:
-        raise GroundingError(f"no evidence was provided; available profile {field_name} values are {sorted(sources)!r}")
-    unsupported = [value for value in values if value not in sources]
-    if unsupported:
-        raise GroundingError(
-            f"unsupported cited evidence {unsupported!r}: not present in the profile's "
-            f"{field_name} values {sorted(sources)!r}"
-        )
-
-
-def _validate_section_evidence(items: list[str], evidence: list[list[str]], sources: set[str], field_name: str) -> None:
-    if len(items) != len(evidence):
-        if len(items) > len(evidence):
-            mismatch = f"generated items without evidence: {items[len(evidence) :]!r}"
-        else:
-            mismatch = f"evidence without generated items: {evidence[len(items) :]!r}"
-        raise GroundingError(
-            f"Tailored CV {field_name} evidence does not match generated items: "
-            f"{len(items)} items, {len(evidence)} evidence lists; {mismatch}"
-        )
-    for index, item_evidence in enumerate(evidence):
-        label = f"{field_name} item {index}"
-        try:
-            _validate_evidence(item_evidence, sources, field_name)
-        except GroundingError as exc:
-            raise GroundingError(f"Tailored CV {label} {items[index]!r} failed evidence validation: {exc}") from exc
-
-
-def _validate_grounded_content(output: TailoredCvOutput, profile, job_data) -> None:
-    education_sources, certification_sources = _source_values(profile)
-    if output.target_role != (getattr(job_data, "title", None) or ""):
-        raise GroundingError(f"Tailored CV contains an unsupported target role: {output.target_role!r}")
-    experiences = getattr(profile, "WorkExperiences", []) or []
-    for item in output.experience:
-        if item.profile_index < 0 or item.profile_index >= len(experiences):
-            raise GroundingError(f"Tailored CV has invalid experience profile_index: {item.profile_index}")
-        source = experiences[item.profile_index]
-        for field_name, source_name in (("company", "Company"), ("start_date", "StartDate"), ("end_date", "EndDate")):
-            value = getattr(item, field_name)
-            expected = getattr(source, source_name)
-            if value != expected:
-                raise GroundingError(
-                    f"Tailored CV experience {field_name} does not match profile index "
-                    f"{item.profile_index}: received {value!r}, expected {expected!r}"
-                )
-        has_responsibilities = any(
-            value and value.strip() for value in (source.Summary, *(source.RealisationDescription or []))
-        )
-        if not has_responsibilities and ((item.summary and item.summary.strip()) or item.descriptions):
-            raise GroundingError(
-                f"Tailored CV experience at profile index {item.profile_index} has "
-                "no responsibility details to support a summary or descriptions"
+def _warn_mismatches(item, source, fields: tuple[tuple[str, str], ...], section: str) -> None:
+    for output_field, source_field in fields:
+        actual = getattr(item, output_field)
+        expected = getattr(source, source_field)
+        differs = actual != expected if output_field == "year" else _normalized(actual) != _normalized(expected)
+        if differs:
+            logger.warning(
+                "Tailored CV %s field %s differs from profile at index %s; using profile value",
+                section,
+                output_field,
+                item.profile_index,
             )
-        source_fields = {
-            "Summary": source.Summary,
-            "Title": source.Title,
-            "Company": source.Company,
-            "Location": source.Location,
-            "StartDate": source.StartDate,
-            "EndDate": source.EndDate,
-        }
-        experience_sources = {value for value in source_fields.values() if value}
-        experience_sources.update(value for value in (source.RealisationDescription or []) if value)
-        field_representations = {f"{name}={value!r}": value for name, value in source_fields.items() if value}
-        field_representations.update(
-            (f"RealisationDescription={value!r}", value) for value in (source.RealisationDescription or []) if value
-        )
-        evidence = [
-            [
-                value if value in experience_sources else field_representations.get(value, value)
-                for value in item_evidence
-            ]
-            for item_evidence in item.description_evidence
-        ]
-        _validate_section_evidence(
-            item.descriptions,
-            evidence,
-            experience_sources,
-            f"experience at profile index {item.profile_index}",
-        )
-    _validate_section_evidence(output.education, output.education_evidence, education_sources, "education")
-    _validate_section_evidence(
-        output.certifications, output.certification_evidence, certification_sources, "certifications"
-    )
+
+
+def _invalid_indexes(output: TailoredCvOutput, profile) -> list[str]:
+    invalid = []
+    for section, entries, sources in (
+        ("experience", output.experience, getattr(profile, "WorkExperiences", []) or []),
+        ("education", output.education, getattr(profile, "Education", []) or []),
+    ):
+        for position, item in enumerate(entries):
+            index = item.profile_index
+            if index is None or index < 0 or index >= len(sources):
+                invalid.append(
+                    f"{section} entry {position}: profile_index {index!r} (valid range 0..{len(sources) - 1})"
+                )
+    return invalid
+
+
+Entry = TypeVar("Entry", TailoredExperienceOutput, TailoredEducationOutput)
+
+
+def _valid_entries(entries: list[Entry], source_count: int, section: str) -> list[Entry]:
+    result: list[Entry] = []
+    seen: set[int] = set()
+    for item in entries:
+        index = item.profile_index
+        if index is None or index < 0 or index >= source_count:
+            logger.warning("Dropping tailored CV %s entry with invalid profile index", section)
+        elif index in seen:
+            logger.warning("Dropping duplicate tailored CV %s profile index %s", section, index)
+        else:
+            seen.add(index)
+            result.append(item)
+    return result
 
 
 async def build_tailored_cv(
@@ -220,38 +166,61 @@ async def build_tailored_cv(
         context["style_reference"] = style_reference.strip()[:MAX_STYLE_REFERENCE_CHARS]
         system_prompt += STYLE_REFERENCE_ADDENDUM
 
-    last_error: GroundingError | None = None
+    feedback = None
     for attempt in range(2):
         attempt_context = dict(context)
-        if last_error is not None:
-            attempt_context["validation_feedback"] = (
-                f"Your previous answer was rejected: {last_error}. Fix it by reusing the cited source wording."
-            )
+        if feedback:
+            attempt_context["validation_feedback"] = feedback
         output = await call_openai_structured(
             system_prompt, json.dumps(attempt_context, ensure_ascii=False), TailoredCvOutput, operation="cv_tailoring"
         )
-        try:
-            _validate_grounded_content(output, profile, job_data)
-        except GroundingError as exc:
-            last_error = exc
-            continue
-        experiences = getattr(profile, "WorkExperiences", []) or []
-        experience = []
-        for item in output.experience:
-            source = experiences[item.profile_index]
-            experience.append(
-                TailoredExperience(
-                    company=item.company,
-                    location=source.Location,
-                    title=item.title,
-                    start_date=item.start_date,
-                    end_date=item.end_date,
-                    summary=item.summary,
-                    descriptions=item.descriptions,
-                )
-            )
-        return TailoredCv(
-            experience=experience,
-            **output.model_dump(exclude={"experience", "education_evidence", "certification_evidence"}),
+        invalid = _invalid_indexes(output, profile)
+        if not invalid or attempt == 1:
+            break
+        feedback = "Use valid profile indexes for these entries: " + "; ".join(invalid)
+
+    experiences = getattr(profile, "WorkExperiences", []) or []
+    educations = getattr(profile, "Education", []) or []
+    experience = []
+    for item in _valid_entries(output.experience, len(experiences), "experience"):
+        assert item.profile_index is not None
+        source = experiences[item.profile_index]
+        _warn_mismatches(
+            item, source, (("company", "Company"), ("start_date", "StartDate"), ("end_date", "EndDate")),
+            "experience",
         )
-    raise last_error
+        experience.append(
+            TailoredExperience(
+                company=source.Company,
+                location=source.Location,
+                title=item.title,
+                start_date=source.StartDate,
+                end_date=source.EndDate,
+                summary=item.summary,
+                descriptions=item.descriptions,
+            )
+        )
+    education = []
+    for item in _valid_entries(output.education, len(educations), "education"):
+        assert item.profile_index is not None
+        source = educations[item.profile_index]
+        _warn_mismatches(
+            item, source, (("degree", "Degree"), ("institution", "Institution"), ("year", "Year")), "education"
+        )
+        rendered = ", ".join(
+            value for value in (source.Degree, source.Institution, source.Year) if value and value.strip()
+        )
+        if rendered:
+            education.append(rendered)
+    if not experience:
+        raise EmptyExperienceError("The generated CV has no valid experience entries.")
+    if not education:
+        logger.warning("Tailored CV has no education entries")
+    return TailoredCv(
+        target_role=getattr(job_data, "title", None) or "",
+        summary=output.summary,
+        experience=experience,
+        education=education,
+        certifications=output.certifications,
+        skills=output.skills,
+    )

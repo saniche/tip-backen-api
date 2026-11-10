@@ -30,7 +30,7 @@ Expected results:
 - Valid typed provider responses populate existing profile, job, match, and CV data.
 - Invalid output and unavailable provider cases do not publish partial data.
 - Profile/job/CV failures become terminal failed jobs; matching writes no partial report.
-- Tailored CV grounding tests reject unsupported claims.
+- Tailored CV tests verify indexed profile reconciliation and index-only retries; free-text claims are not checked.
 
 ## Manual End-to-End Smoke Test
 

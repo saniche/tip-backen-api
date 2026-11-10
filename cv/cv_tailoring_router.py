@@ -12,7 +12,7 @@ from api.schemas.responses.tailoring import CvMetadataResponse
 from auth.security import get_current_user
 from candidate_profile.serialization import dict_to_user_profile
 from cv.cv_service import delete_tailored_record, validate_cv_selection
-from cv.cv_tailoring import GroundingError, build_tailored_cv
+from cv.cv_tailoring import EmptyExperienceError, build_tailored_cv
 from cv.job_group import merge_jobs
 from cv.markdown_writer import render_tailored_cv_markdown, suggest_filename
 from shared.database import SessionLocal, get_db
@@ -114,7 +114,9 @@ async def _run_cv_tailoring(
                 logger.warning("CV blob cleanup failed", extra={"processing_job_id": proc_job_id})
         if retry_transient and is_transient_failure(failure):
             raise
-        message = f"CV validation failed: {failure}" if isinstance(failure, GroundingError) else "CV generation failed"
+        message = (
+            f"CV validation failed: {failure}" if isinstance(failure, EmptyExperienceError) else "CV generation failed"
+        )
         proc_job = db.get(ProcessingJob, proc_job_id)
         if proc_job is not None:
             proc_job.status = ProcessingJobStatus.FAILED

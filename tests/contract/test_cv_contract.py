@@ -6,7 +6,9 @@ def _profile_and_match(client, email, url):
         "access_token"
     ]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"summary": "Python engineer", "skills": ["Python"]}})
+    client.put("/api/v1/profile", headers=headers, json={"data": {
+        "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+    }})
     job = client.post(
         "/api/v1/jobs/normalize", headers=headers, json={"url": url, "content": "Python", "title": "Python Engineer"}
     )
