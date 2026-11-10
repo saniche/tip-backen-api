@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 import cover_letter.cover_letter_tailoring as cover_letter_module
 import cv.cv_tailoring as cv_module
 import tailoring.tailoring_service as tailoring_service
-from cover_letter.cover_letter_tailoring import CoverLetterGroundingError
 from shared import storage
 from shared.database import TestingSessionLocal
 from shared.llm_structured import StructuredProviderError
@@ -166,7 +165,7 @@ def test_one_failed_document_does_not_discard_the_others(client, monkeypatch):
     headers, user_id, jobs = _setup(client, "partial@example.com", job_count=1)
 
     async def broken_letter(*args, **kwargs):
-        raise CoverLetterGroundingError("Cover letter contains unsupported facts: Google")
+        raise StructuredProviderError("provider unavailable")
 
     monkeypatch.setattr(tailoring_service, "build_cover_letter", broken_letter)
     response = _tailor(client, headers, job_ids=jobs, cover_letter={"enabled": True, "mode": "per_job"})
@@ -176,7 +175,7 @@ def test_one_failed_document_does_not_discard_the_others(client, monkeypatch):
     by_kind = {d["kind"]: d for d in detail["documents"]}
     assert by_kind["cv"]["status"] == "completed" and by_kind["cv"]["download_url"]
     assert by_kind["cover_letter"]["status"] == "failed" and by_kind["cover_letter"]["download_url"] is None
-    assert "not supported" in by_kind["cover_letter"]["error"]
+    assert "try again" in by_kind["cover_letter"]["error"]
     assert client.get(f"{API}/processing-jobs/{response.json()['id']}", headers=headers).json()["status"] == "done"
     assert (
         client.get(f"{API}/tailoring/documents/{by_kind['cover_letter']['id']}/download", headers=headers).status_code

@@ -16,7 +16,6 @@ from api.schemas.responses.tailoring import (
 from auth.security import get_current_user
 from candidate_profile.profile_service import resolve_profile
 from candidate_profile.serialization import dict_to_user_profile
-from cover_letter.cover_letter_tailoring import CoverLetterGroundingError
 from cv.cv_service import delete_tailored_record
 from cv.cv_tailoring import EmptyExperienceError
 from defaults.defaults_service import KIND_COVER_LETTER, KIND_CV, get_default_document
@@ -50,8 +49,6 @@ def _item_error(kind: str, exc: Exception) -> str:
     label = _KIND_LABEL.get(kind, "document")
     if isinstance(exc, EmptyExperienceError):
         return f"The generated {label} failed validation: {exc}"
-    if isinstance(exc, CoverLetterGroundingError):
-        return f"The generated {label} contained content not supported by the profile and job"
     if isinstance(exc, StructuredProviderError):
         return f"The AI provider could not produce the {label}; try again"
     return f"The {label} could not be generated"
