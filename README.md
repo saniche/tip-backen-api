@@ -136,6 +136,10 @@ OPENAI_TIMEOUT_SECONDS=60
 Standard automated tests mock OpenAI calls and do not require an API key. Provider failures result
 in a safe service error for matching or a failed processing job for profile, job, and CV workflows.
 
+Cover letters are validated as structured output, but generated claims are not automatically
+fact-checked. A supplied style reference can trigger one length-adjustment retry; a remaining length
+deviation is returned as a warning.
+
 ### Job normalization
 
 `POST /api/v1/jobs/normalize` requires the posting URL and raw content. Optional client-provided
