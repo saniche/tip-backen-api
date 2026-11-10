@@ -21,6 +21,8 @@ def test_matching_contract_ranks_results_and_denies_other_owner(client):
     report_id = report.json()["result_id"]
     detail = client.get(f"/api/v1/matching/reports/{report_id}", headers=headers)
     assert detail.status_code == 200
+    listed = client.get("/api/v1/matching/reports", headers=headers)
+    assert detail.json()["profile_id"] == listed.json()[0]["profile_id"]
     assert detail.json()["results"][0]["rank"] == 1
     assert "explanation" in detail.json()["results"][0]
     assert set(detail.json()["results"][0]["explanation"]) == {

@@ -70,9 +70,12 @@ async def create_match_report(
         raise HTTPException(400, "At least one job id is required")
 
     try:
-        report = create_pending_match_report(db, current_user.id, payload.job_ids, commit=False)
+        report = create_pending_match_report(
+            db, current_user.id, payload.job_ids, profile_id=payload.profile_id, commit=False
+        )
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        status_code = 404 if str(exc) == "Profile not found" else 400
+        raise HTTPException(status_code, str(exc)) from exc
     queue = await background_queue.connect_queue()
     processing_job = ProcessingJob(user_id=current_user.id, job_type=ProcessingJobType.MATCHING)
     try:
@@ -149,6 +152,7 @@ def get_match_report(
     )
     return {
         "id": report.id,
+        "profile_id": report.profile_id,
         "status": report.status,
         "results": [
             {
@@ -203,5 +207,5 @@ async def match_job(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    request = MatchCreateRequest(job_ids=[payload.job_id])
+    request = MatchCreateRequest(job_ids=[payload.job_id], profile_id=payload.profile_id)
     return await create_match_report(request, current_user, db)

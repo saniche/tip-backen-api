@@ -1,6 +1,14 @@
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
-from matching.matching_service import _job_data, create_match_report, get_match_report, list_match_reports
+from matching.matching_service import (
+    _job_data,
+    create_match_report,
+    create_pending_match_report,
+    get_match_report,
+    list_match_reports,
+)
 from shared.llm_structured import StructuredProviderError
 from shared.models import Job, JobMatchingResult, MatchReport, User, UserProfile
 
@@ -74,6 +82,67 @@ async def test_match_report_rejects_missing_profile_and_unavailable_job(database
     database_session.commit()
     with pytest.raises(ValueError, match="Profile not found"):
         await create_match_report(database_session, user.id, ["missing-job"])
+
+
+@pytest.mark.asyncio
+async def test_match_report_uses_selected_profile_and_defaults_to_latest_active(database_session):
+    user = User(email="selected-profile@example.com", hashed_password="hash")
+    database_session.add(user)
+    database_session.commit()
+    older_profile = UserProfile(
+        user_id=user.id,
+        data={"skills": ["Older profile"]},
+        output_language="English",
+        created_at=datetime.now(timezone.utc),
+    )
+    latest_profile = UserProfile(
+        user_id=user.id,
+        data={"skills": ["Latest profile"]},
+        output_language="English",
+        created_at=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    job = Job(
+        title="Python Engineer",
+        required={"qualifications": [], "skills": ["Python"]},
+        desirable={"qualifications": [], "skills": []},
+        submitter_id=user.id,
+    )
+    database_session.add_all([older_profile, latest_profile, job])
+    database_session.commit()
+    database_session.refresh(job)
+
+    selected_report = await create_match_report(database_session, user.id, [job.id], profile_id=older_profile.id)
+    default_report = await create_match_report(database_session, user.id, [job.id])
+
+    assert selected_report.profile_id == older_profile.id
+    assert default_report.profile_id == latest_profile.id
+    persisted_results = {
+        result.report_id: result
+        for result in database_session.query(JobMatchingResult)
+        .filter(JobMatchingResult.report_id.in_([selected_report.id, default_report.id]))
+        .all()
+    }
+    assert persisted_results[selected_report.id].profile_snapshot == older_profile.data
+    assert persisted_results[default_report.id].profile_snapshot == latest_profile.data
+
+
+def test_pending_match_report_rejects_unknown_and_foreign_profiles(database_session):
+    user = User(email="profile-owner@example.com", hashed_password="hash")
+    other_user = User(email="profile-other@example.com", hashed_password="hash")
+    database_session.add_all([user, other_user])
+    database_session.commit()
+    foreign_profile = UserProfile(user_id=other_user.id, data={"skills": ["Rust"]}, output_language="English")
+    database_session.add_all(
+        [
+            UserProfile(user_id=user.id, data={"skills": ["Python"]}, output_language="English"),
+            foreign_profile,
+        ]
+    )
+    database_session.commit()
+
+    for profile_id in ("unknown-profile", foreign_profile.id):
+        with pytest.raises(ValueError, match="Profile not found"):
+            create_pending_match_report(database_session, user.id, ["unused-job"], profile_id=profile_id)
 
 
 @pytest.mark.asyncio

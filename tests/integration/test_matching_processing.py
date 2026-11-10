@@ -30,6 +30,82 @@ def test_matching_processing_persists_ranked_results_and_safe_owner_scope(client
     assert all("explanation" in item for item in detail["results"])
 
 
+def test_matching_routes_use_requested_profile(client, database_session):
+    registered = client.post(
+        "/api/v1/auth/register",
+        json={"email": "match-selected@example.com", "password": "password123"},
+    ).json()
+    headers = {"Authorization": f"Bearer {registered['access_token']}"}
+    user = database_session.query(User).filter_by(email="match-selected@example.com").one()
+    selected_profile = UserProfile(user_id=user.id, data={"skills": ["Selected profile"]}, output_language="English")
+    default_profile = UserProfile(user_id=user.id, data={"skills": ["Default profile"]}, output_language="English")
+    job = Job(
+        title="Selected profile test",
+        required={"qualifications": [], "skills": ["Python"]},
+        desirable={"qualifications": [], "skills": []},
+        submitter_id=user.id,
+    )
+    database_session.add_all([selected_profile, default_profile, job])
+    database_session.commit()
+    database_session.refresh(job)
+
+    batch_response = client.post(
+        "/api/v1/matching",
+        headers=headers,
+        json={"job_ids": [job.id], "profile_id": selected_profile.id},
+    )
+    single_response = client.post(
+        "/api/v1/matching/match",
+        headers=headers,
+        json={"job_id": job.id, "profile_id": selected_profile.id},
+    )
+
+    assert batch_response.status_code == 202
+    assert single_response.status_code == 202
+    reports = {
+        report["id"]: report["profile_id"]
+        for report in client.get("/api/v1/matching/reports", headers=headers).json()
+    }
+    assert reports[batch_response.json()["result_id"]] == selected_profile.id
+    assert reports[single_response.json()["result_id"]] == selected_profile.id
+
+
+def test_matching_routes_reject_unknown_and_foreign_profiles(client, database_session):
+    owner = client.post(
+        "/api/v1/auth/register",
+        json={"email": "match-profile-owner@example.com", "password": "password123"},
+    ).json()
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "match-profile-other@example.com", "password": "password123"},
+    ).json()
+    owner_headers = {"Authorization": f"Bearer {owner['access_token']}"}
+    other_user = database_session.query(User).filter_by(email="match-profile-other@example.com").one()
+    foreign_profile = UserProfile(
+        user_id=other_user.id,
+        data={"skills": ["Foreign profile"]},
+        output_language="English",
+    )
+    database_session.add(foreign_profile)
+    database_session.commit()
+
+    unknown = client.post(
+        "/api/v1/matching",
+        headers=owner_headers,
+        json={"job_ids": ["unused-job"], "profile_id": "unknown-profile"},
+    )
+    foreign = client.post(
+        "/api/v1/matching/match",
+        headers=owner_headers,
+        json={"job_id": "unused-job", "profile_id": foreign_profile.id},
+    )
+
+    assert unknown.status_code == 404
+    assert unknown.json()["error"]["message"] == "Profile not found"
+    assert foreign.status_code == 404
+    assert foreign.json()["error"]["message"] == "Profile not found"
+
+
 def test_matching_invalid_structured_output_returns_safe_failure(client, monkeypatch):
     user = client.post(
         "/api/v1/auth/register", json={"email": "match-invalid@example.com", "password": "password123"}
