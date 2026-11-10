@@ -18,7 +18,9 @@ def _setup(client, email, job_count=2):
     token = client.post(f"{API}/auth/register", json={"email": email, "password": "password123"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     user_id = client.put(
-        f"{API}/profile", headers=headers, json={"data": {"summary": "Python engineer", "skills": ["Python"]}}
+        f"{API}/profile", headers=headers, json={"data": {
+            "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+        }}
     ).json()["user_id"]
     job_ids = []
     for index in range(job_count):
@@ -82,7 +84,7 @@ def test_selected_profile_is_used_and_latest_is_the_default(client):
     with TestingSessionLocal() as db:
         newest = UserProfile(
             user_id=user_id,
-            data={"summary": "Python engineer"},
+            data={"summary": "Python engineer", "WorkExperiences": [{"Title": "Engineer"}]},
             evidence={},
             output_language="English",
             created_at=datetime.now(timezone.utc) + timedelta(minutes=5),
@@ -108,12 +110,11 @@ def test_default_documents_are_only_a_style_reference_and_are_optional(client, m
         return schema_model(
             target_role="Python Engineer",
             summary="Python Engineer",
-            experience=[],
+            experience=[{"profile_index": 0, "title": "Engineer", "company": None, "start_date": None,
+                         "end_date": None, "descriptions": []}],
             education=[],
             certifications=[],
             skills=["Python"],
-            education_evidence=[],
-            certification_evidence=[],
         )
 
     async def letter_provider(system, user, schema_model, **kwargs):
@@ -231,7 +232,7 @@ def test_cover_letter_provider_failure_logs_safe_details_and_returns_generic_err
     assert "External processing failed." in record.getMessage()
 
 
-def test_cv_experience_failure_details_are_only_visible_to_owner(client, monkeypatch):
+def test_cv_experience_dates_are_reconciled_and_document_is_private(client, monkeypatch):
     headers, _, jobs = _setup(client, "experience-owner@example.com", job_count=1)
     client.put(
         f"{API}/profile",
@@ -266,20 +267,17 @@ def test_cv_experience_failure_details_are_only_visible_to_owner(client, monkeyp
                     "start_date": "2020",
                     "end_date": "2024",
                     "descriptions": ["Delivered patient care"],
-                    "description_evidence": [["Delivered patient care"]],
                 }
             ],
-            education_evidence=[],
-            certification_evidence=[],
         )
 
     monkeypatch.setattr(cv_module, "call_openai_structured", provider)
     response = _tailor(client, headers, job_ids=jobs)
     status = client.get(f"{API}/processing-jobs/{response.json()['id']}", headers=headers).json()
     detail = _detail(client, headers, response)
-    assert status["status"] == "failed"
-    assert "end_date" in status["error"] and "2024" in status["error"] and "2023" in status["error"]
-    assert detail["documents"][0]["error"] == status["error"]
+    assert status["status"] == "done"
+    text = client.get(f"{API}/tailoring/documents/{detail['documents'][0]['id']}/download", headers=headers).text
+    assert "2020 – 2023" in text and "2024" not in text
 
     other, _, _ = _setup(client, "experience-other@example.com", job_count=1)
     assert client.get(f"{API}/processing-jobs/{response.json()['id']}", headers=other).status_code == 404

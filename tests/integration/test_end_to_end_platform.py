@@ -9,7 +9,8 @@ def test_profile_to_cv_acceptance_flow(client):
     client.put(
         "/api/v1/profile",
         headers=headers,
-        json={"data": {"summary": "Python engineer", "skills": ["Python", "FastAPI"]}},
+        json={"data": {"summary": "Python engineer", "skills": ["Python", "FastAPI"],
+                       "WorkExperiences": [{"Title": "Engineer"}]}},
     )
     job = client.post(
         "/api/v1/jobs/normalize",

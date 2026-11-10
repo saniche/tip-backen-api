@@ -59,38 +59,19 @@ def test_cv_experience_validates_profile_fields_and_reports_failure_to_owner(cli
                     "end_date": "2023",
                     "summary": "Supported patient care.",
                     "descriptions": ["Delivered patient care"],
-                    "description_evidence": [["RealisationDescription='Delivered patient care'"]],
                 }
             ],
-            education_evidence=[],
-            certification_evidence=[],
         )
 
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
     request = client.post("/api/v1/cv/tailor", headers=headers, json={"matching_id": match_id}).json()
     status = client.get(f"/api/v1/processing-jobs/{request['id']}", headers=headers).json()
-    if valid:
-        assert status["status"] == "done"
-        assert len(calls) == 1
-        text = client.get(f"/api/v1/cv/{status['result_id']}/download", headers=headers).text
-        assert "**Care Hospital**, Ottawa, ON\n**Community Care Lead, 2020 – 2023**" in text
-        assert "Supported patient care." in text
-        assert "Delivered patient care" in text
-    else:
-        assert status["status"] == "failed"
-        assert len(calls) == 2
-        assert "company" in status["error"] and "Wrong Hospital" in status["error"]
-        assert "Care Hospital" in status["error"]
-        assert client.get("/api/v1/cv", headers=headers).json() == []
-        other_token = client.post(
-            "/api/v1/auth/register", json={"email": "cv-other@example.com", "password": "password123"}
-        ).json()["access_token"]
-        assert (
-            client.get(
-                f"/api/v1/processing-jobs/{request['id']}", headers={"Authorization": f"Bearer {other_token}"}
-            ).status_code
-            == 404
-        )
+    assert status["status"] == "done"
+    assert len(calls) == 1
+    text = client.get(f"/api/v1/cv/{status['result_id']}/download", headers=headers).text
+    assert "**Care Hospital**, Ottawa, ON\n**Community Care Lead, 2020 – 2023**" in text
+    assert "Supported patient care." in text
+    assert "Delivered patient care" in text
 
 
 def test_cv_skills_do_not_trigger_grounding_retries(client, monkeypatch):
@@ -101,7 +82,8 @@ def test_cv_skills_do_not_trigger_grounding_retries(client, monkeypatch):
     client.put(
         "/api/v1/profile",
         headers=headers,
-        json={"data": {"summary": "Python engineer", "skills": ["Python"], "soft_skills": ["Communication"]}},
+        json={"data": {"summary": "Python engineer", "skills": ["Python"], "soft_skills": ["Communication"],
+                       "WorkExperiences": [{"Title": "Engineer"}]}},
     )
     job = client.post(
         "/api/v1/jobs/normalize",
@@ -117,12 +99,11 @@ def test_cv_skills_do_not_trigger_grounding_retries(client, monkeypatch):
         return schema_model(
             target_role="Python Engineer",
             summary="Award-winning Rust architect",
-            experience=[],
+            experience=[{"profile_index": 0, "title": "Engineer", "company": None, "start_date": None,
+                         "end_date": None, "descriptions": []}],
             education=[],
             certifications=[],
             skills=["FastAPI", "Patient assessment"],
-            education_evidence=[],
-            certification_evidence=[],
         )
 
     monkeypatch.setattr(cv_tailoring, "call_openai_structured", provider)
@@ -144,7 +125,9 @@ def test_cv_processing_persists_markdown_and_expiring_download_url(client):
         "/api/v1/auth/register", json={"email": "cv-int@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"summary": "Python engineer", "skills": ["Python"]}})
+    client.put("/api/v1/profile", headers=headers, json={"data": {
+        "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+    }})
     job = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,
@@ -169,7 +152,9 @@ def test_cv_provider_failure_publishes_no_record(client, monkeypatch):
         "/api/v1/auth/register", json={"email": "cv-failure@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.put("/api/v1/profile", headers=headers, json={"data": {
+        "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+    }})
     job = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,
@@ -194,7 +179,9 @@ def test_cv_invalid_structured_output_publishes_no_record(client, monkeypatch):
         "/api/v1/auth/register", json={"email": "cv-invalid@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.put("/api/v1/profile", headers=headers, json={"data": {
+        "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+    }})
     job = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,
@@ -218,7 +205,9 @@ def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch, tmp_pa
         "/api/v1/auth/register", json={"email": "cv-upload-failure@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.put("/api/v1/profile", headers=headers, json={"data": {
+        "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+    }})
     job = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,
@@ -247,7 +236,9 @@ def test_later_multi_cv_failure_deletes_earlier_uploaded_blob(client, monkeypatc
         "/api/v1/auth/register", json={"email": "cv-multi-failure@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.put("/api/v1/profile", headers=headers, json={"data": {
+        "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
+    }})
     job_ids = []
     for suffix in ("one", "two"):
         job_ids.append(

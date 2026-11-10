@@ -18,7 +18,7 @@ from candidate_profile.profile_service import resolve_profile
 from candidate_profile.serialization import dict_to_user_profile
 from cover_letter.cover_letter_tailoring import CoverLetterGroundingError
 from cv.cv_service import delete_tailored_record
-from cv.cv_tailoring import GroundingError
+from cv.cv_tailoring import EmptyExperienceError
 from defaults.defaults_service import KIND_COVER_LETTER, KIND_CV, get_default_document
 from shared.database import SessionLocal, get_db
 from shared.llm_structured import StructuredProviderError
@@ -48,7 +48,7 @@ _KIND_LABEL = {"cv": "CV", "cover_letter": "cover letter"}
 
 def _item_error(kind: str, exc: Exception) -> str:
     label = _KIND_LABEL.get(kind, "document")
-    if isinstance(exc, GroundingError):
+    if isinstance(exc, EmptyExperienceError):
         return f"The generated {label} failed validation: {exc}"
     if isinstance(exc, CoverLetterGroundingError):
         return f"The generated {label} contained content not supported by the profile and job"

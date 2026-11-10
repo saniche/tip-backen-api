@@ -10,7 +10,8 @@ def test_cv_tailoring_and_download_flow(client):
     profile = client.put(
         "/api/v1/profile",
         headers=headers,
-        json={"data": {"summary": "Python engineer", "skills": ["Python", "FastAPI"]}},
+        json={"data": {"summary": "Python engineer", "skills": ["Python", "FastAPI"],
+                       "WorkExperiences": [{"Title": "Engineer"}]}},
     )
     assert profile.status_code == 200
 

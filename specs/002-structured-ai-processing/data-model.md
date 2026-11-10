@@ -62,17 +62,14 @@ The provider result adapts to `pipeline.cv_tailoring.TailoredCv` before renderin
 |-------|-------|
 | target role | Required string derived from selected job context |
 | summary | Required string; the prompt requests grounding in the supplied context, but no programmatic evidence or content check is applied |
-| experience | Each generated entry identifies its source work experience by index. Company and dates must exactly match that entry, including missing values; the title is unrestricted. An optional one-sentence summary is prompted from the entry's `Summary` and `RealisationDescription` alongside its descriptions, but is not independently checked for factual grounding. Descriptions require evidence from the same entry. If neither source has responsibility details, the CV retains the experience header without a summary or descriptions. Company and date claims embedded in free-text titles or summaries are not independently validated. |
-| education, certifications | Required lists containing profile-supported statements |
+| experience | Each generated entry identifies its source work experience by index. Company and dates are copied from that entry, including missing values; generated titles, summaries, and descriptions are not independently checked for factual grounding. At least one valid entry is required. |
+| education, certifications | Education entries identify their source by index; only degree, institution, and year are rendered from that profile entry. Certifications are generated strings without programmatic grounding checks. |
 | skills | Required list; the prompt requests skills from the profile's explicit technical or soft skills, but the skills are not programmatically checked for grounding |
 
-Validation failures include the rejected values and are returned to the authenticated request owner
-through the processing job and, for `/tailoring`, the affected document. These details may contain
-profile or generated text.
-
-The CV model receives profile and job context as JSON. Experience evidence must match a source value;
-an exact Python-style `field='value'` representation is also accepted when both the field and value
-match the linked profile experience. Altered or mismatched evidence remains rejected.
+The CV model receives profile and job context as JSON. Invalid profile indexes trigger one retry;
+remaining invalid entries and duplicate indexes are dropped. Generated order is retained. Objective
+field discrepancies are logged without field values and reconciled from the profile. Empty education
+is logged as a warning, and an empty experience section fails the CV. The target role is the job title.
 
 ## State Transitions
 
