@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from candidate_profile.profile_service import resolve_profile
 from matching.job_matching import build_match_result
 from matching.llm_matching import JobData, get_llm_match_output
 from shared.models import Job, JobMatchingResult, MatchReport, UserProfile
@@ -77,25 +78,19 @@ def _view(report: MatchReport, results: list[JobMatchingResult]) -> MatchReportV
     )
 
 
-def create_pending_match_report(db: Session, user_id: str, job_ids: list[str], *, commit: bool = True) -> MatchReport:
+def create_pending_match_report(
+    db: Session, user_id: str, job_ids: list[str], profile_id: str | None = None, *, commit: bool = True
+) -> MatchReport:
     if not job_ids:
         raise ValueError("At least one job id is required")
-    profile = (
-        db.execute(select(UserProfile).where(UserProfile.user_id == user_id,
-            UserProfile.deleted_at.is_(None),
-        ).order_by(desc(UserProfile.created_at)))
-        .scalars()
-        .first()
-    )
-    if profile is None:
-        raise ValueError("Profile not found")
+    profile = resolve_profile(db, user_id, profile_id)
     jobs = {job.id: job for job in db.execute(select(Job).where(Job.id.in_(job_ids))).scalars().all()}
     if any(job_id not in jobs for job_id in job_ids):
         raise ValueError("Job not found")
     if any(job.status != "completed" for job in jobs.values()):
         raise ValueError("Job processing has not completed")
 
-    report = MatchReport(user_id=user_id, profile_id=profile.id, status="pending", rules_version="v2")
+    report = MatchReport(user_id=user_id, profile_id=profile_id or profile.id, status="pending", rules_version="v2")
     db.add(report)
     if commit:
         db.commit()
@@ -112,7 +107,7 @@ async def process_match_report(
     if report is None or report.user_id != user_id:
         raise ValueError("Match report not found")
     profile = db.get(UserProfile, report.profile_id)
-    if profile is None:
+    if profile is None or profile.user_id != user_id:
         raise ValueError("Profile not found")
     jobs = {job.id: job for job in db.execute(select(Job).where(Job.id.in_(job_ids))).scalars().all()}
     if any(job_id not in jobs for job_id in job_ids):
@@ -165,8 +160,10 @@ async def process_match_report(
     return _view(report, persisted)
 
 
-async def create_match_report(db: Session, user_id: str, job_ids: list[str]) -> MatchReportView:
-    report = create_pending_match_report(db, user_id, job_ids)
+async def create_match_report(
+    db: Session, user_id: str, job_ids: list[str], profile_id: str | None = None
+) -> MatchReportView:
+    report = create_pending_match_report(db, user_id, job_ids, profile_id)
     try:
         return await process_match_report(db, report.id, user_id, job_ids)
     except Exception:

@@ -64,9 +64,17 @@ class MatchReportSummaryResponse(BaseModel):
 class MatchReportResponse(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
-        json_schema_extra={"example": {"id": "report-123", "status": "completed", "results": []}},
+        json_schema_extra={
+            "example": {
+                "id": "report-123",
+                "profile_id": "profile-123",
+                "status": "completed",
+                "results": [],
+            }
+        },
     )
 
     id: str = Field(description="Match report identifier.", examples=["report-123"])
+    profile_id: str | None = Field(description="Profile version used for matching.", examples=["profile-123"])
     status: MatchReportStatus = Field(description="Report completion state.", examples=["completed"])
     results: list[MatchResultResponse] = Field(description="Ranked job comparison results.", examples=[[]])
