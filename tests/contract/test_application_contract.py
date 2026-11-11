@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
@@ -164,6 +164,53 @@ def test_application_list_is_owner_scoped_filtered_and_paginated(client, databas
     assert body["totalPages"] == 1
     assert body["items"][0]["job"]["title"] == "Senior Python Engineer"
     assert client.get("/api/v1/applications", headers=other_headers).json()["items"][0]["job"]["title"] == "Secret"
+
+
+def test_application_list_filters_status_and_inclusive_follow_up_range(client, database_session):
+    headers, user_id = register(client, database_session, "application-date-filter@example.com")
+    _, other_id = register(client, database_session, "application-date-filter-other@example.com")
+    cases = [
+        ("start", "Applied", date(2026, 11, 10)),
+        ("end", "Applied", date(2026, 11, 11)),
+        ("past", "Applied", date(2026, 11, 9)),
+        ("future", "Applied", date(2026, 11, 12)),
+        ("missing", "Applied", None),
+        ("other-status", "Interview", date(2026, 11, 10)),
+    ]
+    for name, application_status, due_date in cases:
+        job_id = make_job(database_session, f"https://jobs.test/filter-{name}", title="Python Engineer")
+        database_session.add(ApplicationJournal(
+            id=name, user_id=user_id, job_id=job_id, status=application_status, follow_up_date=due_date
+        ))
+        if name == "start":
+            database_session.add(ApplicationJournal(
+                id="other-owner", user_id=other_id, job_id=job_id,
+                status=application_status, follow_up_date=due_date,
+            ))
+    database_session.commit()
+    query = "status=Applied&follow_up_from=2026-11-10&follow_up_to=2026-11-11&title=python"
+    first = client.get(f"/api/v1/applications?{query}&limit=1&page=1", headers=headers)
+    second = client.get(f"/api/v1/applications?{query}&limit=1&page=2", headers=headers)
+    assert first.status_code == second.status_code == 200
+    assert first.json()["total"] == second.json()["total"] == 2
+    assert first.json()["totalPages"] == 2
+    assert {first.json()["items"][0]["id"], second.json()["items"][0]["id"]} == {"start", "end"}
+    assert client.get("/api/v1/applications?status=Interview", headers=headers).json()["total"] == 1
+    assert client.get("/api/v1/applications?follow_up_to=2026-11-10", headers=headers).json()["total"] == 3
+    assert client.get("/api/v1/applications?follow_up_from=2026-11-11", headers=headers).json()["total"] == 2
+    assert client.get("/api/v1/applications", headers=headers).json()["total"] == 6
+
+
+@pytest.mark.parametrize("query", [
+    "status=Unknown", "follow_up_from=invalid", "follow_up_to=invalid", "follow_up_from=0",
+    "follow_up_to=2026-11-11T00:00:00",
+    "follow_up_from=2026-11-12&follow_up_to=2026-11-11",
+])
+def test_application_list_rejects_invalid_status_and_dates(client, database_session, query):
+    headers, _ = register(client, database_session, "application-invalid-filter@example.com")
+    response = client.get(f"/api/v1/applications?{query}", headers=headers)
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_application_list_orders_newest_first_and_rejects_bad_pagination(client, database_session):

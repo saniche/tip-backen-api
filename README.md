@@ -30,6 +30,25 @@ in the `.local-blobs` directory instead of connecting to an emulator. Set `LOCAL
 to change the directory; all application processes must share the same location. This directory
 contains user documents and should be protected and backed up appropriately.
 
+### Dashboard summary and journal filters
+
+`GET /api/v1/dashboard/summary` returns authenticated-user totals for applications, interests,
+matching reports, tailoring requests, and active profiles. Application totals include a count for
+every status and a `follow_ups_due` object with the full `count` and an `items` list. Items contain
+`id`, `job_title`, nullable `company`, and `follow_up_date`; they are sorted by date then application
+ID. Finished applications (`Closed`, `Rejected`, and `Accepted`) are excluded from due follow-ups.
+Summary response fields use snake_case.
+
+Pass `today=YYYY-MM-DD` for the user's local date; when omitted, the current UTC date is used.
+`follow_up_limit` defaults to 5, must be at least 1, and is capped at 100. Matching reports and
+tailoring requests include all statuses; tailoring requests include legacy CV requests. Deleted
+profiles are excluded.
+
+`GET /api/v1/applications` additionally accepts one `status` and inclusive `follow_up_from` and
+`follow_up_to` dates (`YYYY-MM-DD`). These filters combine with existing job filters and pagination.
+Entries without a follow-up date do not match a date filter. Invalid values or an inverted date
+range return 422.
+
 ### Database configuration
 
 PostgreSQL must be running and the database named in `DATABASE_URL` must already exist. The
