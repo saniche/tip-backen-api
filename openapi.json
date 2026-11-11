@@ -291,7 +291,7 @@
           "Applications"
         ],
         "summary": "List application entries",
-        "description": "Lists the authenticated user's application entries with optional job filters and pagination.",
+        "description": "Lists the authenticated user's application entries with optional job, status, date and pagination filters.",
         "operationId": "applications_get_list_application_entries_api_v1_applications",
         "security": [
           {
@@ -361,6 +361,62 @@
               "title": "Location"
             },
             "description": "Case-insensitive job-location filter."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ApplicationStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by current application status.",
+              "title": "Status"
+            },
+            "description": "Filter by current application status."
+          },
+          {
+            "name": "follow_up_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive earliest follow-up date.",
+              "title": "Follow Up From"
+            },
+            "description": "Inclusive earliest follow-up date."
+          },
+          {
+            "name": "follow_up_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive latest follow-up date.",
+              "title": "Follow Up To"
+            },
+            "description": "Inclusive latest follow-up date."
           },
           {
             "name": "page",
@@ -730,6 +786,97 @@
           },
           "404": {
             "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request body, query parameters, or uploaded file are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The service could not complete the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/summary": {
+      "get": {
+        "tags": [
+          "Dashboard"
+        ],
+        "summary": "Get dashboard summary",
+        "description": "Returns owned totals and due follow-ups. Supply today in the client's local timezone; otherwise the current UTC date is used.",
+        "operationId": "dashboard_get_dashboard_summary_api_v1_dashboard_summary",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "today",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client's current date (YYYY-MM-DD); defaults to UTC today.",
+              "title": "Today"
+            },
+            "description": "Client's current date (YYYY-MM-DD); defaults to UTC today."
+          },
+          {
+            "name": "follow_up_limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum due items; values above 100 are capped at 100.",
+              "default": 5,
+              "title": "Follow Up Limit"
+            },
+            "description": "Maximum due items; values above 100 are capped at 100."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or the bearer token is invalid.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5063,6 +5210,21 @@
             "examples": [
               "English"
             ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Optional profile display label.",
+            "examples": [
+              "Engineering profile"
+            ]
           }
         },
         "additionalProperties": false,
@@ -5071,7 +5233,8 @@
           "id",
           "user_id",
           "data",
-          "output_language"
+          "output_language",
+          "label"
         ],
         "title": "CurrentProfileResponse",
         "example": {
@@ -5079,6 +5242,7 @@
             "summary": "Python engineer"
           },
           "id": "profile-123",
+          "label": "Engineering profile",
           "output_language": "English",
           "user_id": "user-123"
         }
@@ -5257,6 +5421,146 @@
           "mode": "per_job",
           "output_language": "English"
         }
+      },
+      "DashboardApplications": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total application journal entries."
+          },
+          "by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/ApplicationStatus"
+            },
+            "type": "object",
+            "title": "By Status",
+            "description": "Count for each application status, including zeros."
+          },
+          "follow_ups_due": {
+            "$ref": "#/components/schemas/DashboardFollowUps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total",
+          "by_status",
+          "follow_ups_due"
+        ],
+        "title": "DashboardApplications"
+      },
+      "DashboardFollowUpItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Application journal entry identifier."
+          },
+          "job_title": {
+            "type": "string",
+            "title": "Job Title",
+            "description": "Job title."
+          },
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company",
+            "description": "Employer name, if available."
+          },
+          "follow_up_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Follow Up Date",
+            "description": "Planned follow-up date."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "job_title",
+          "company",
+          "follow_up_date"
+        ],
+        "title": "DashboardFollowUpItem"
+      },
+      "DashboardFollowUps": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "Total due follow-ups, independent of the item limit."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardFollowUpItem"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Oldest due follow-ups, ordered by date and application ID."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "items"
+        ],
+        "title": "DashboardFollowUps"
+      },
+      "DashboardSummaryResponse": {
+        "properties": {
+          "applications": {
+            "$ref": "#/components/schemas/DashboardApplications"
+          },
+          "interests": {
+            "$ref": "#/components/schemas/DashboardTotal"
+          },
+          "matching_reports": {
+            "$ref": "#/components/schemas/DashboardTotal"
+          },
+          "tailoring_requests": {
+            "$ref": "#/components/schemas/DashboardTotal"
+          },
+          "profiles": {
+            "$ref": "#/components/schemas/DashboardTotal"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "applications",
+          "interests",
+          "matching_reports",
+          "tailoring_requests",
+          "profiles"
+        ],
+        "title": "DashboardSummaryResponse"
+      },
+      "DashboardTotal": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Total owned records."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "title": "DashboardTotal"
       },
       "DefaultDocumentIn": {
         "properties": {
@@ -6079,6 +6383,21 @@
       },
       "JobMatchingRequest": {
         "properties": {
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Id",
+            "description": "Normalized profile identifier.",
+            "examples": [
+              "profile-123"
+            ]
+          },
           "job_id": {
             "type": "string",
             "title": "Job Id",
@@ -6391,6 +6710,21 @@
       },
       "MatchCreateRequest": {
         "properties": {
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Id",
+            "description": "Normalized profile identifier.",
+            "examples": [
+              "profile-123"
+            ]
+          },
           "job_ids": {
             "items": {
               "type": "string"
@@ -6428,6 +6762,21 @@
               "report-123"
             ]
           },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Id",
+            "description": "Profile version used for matching.",
+            "examples": [
+              "profile-123"
+            ]
+          },
           "status": {
             "$ref": "#/components/schemas/MatchReportStatus",
             "description": "Report completion state.",
@@ -6451,12 +6800,14 @@
         "type": "object",
         "required": [
           "id",
+          "profile_id",
           "status",
           "results"
         ],
         "title": "MatchReportResponse",
         "example": {
           "id": "report-123",
+          "profile_id": "profile-123",
           "results": [],
           "status": "completed"
         }
@@ -7171,6 +7522,22 @@
             "default": "English",
             "examples": [
               "English"
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "Optional display label.",
+            "examples": [
+              "Engineering profile"
             ]
           }
         },
@@ -8128,6 +8495,10 @@
     {
       "name": "Applications",
       "description": "Track job applications and status history."
+    },
+    {
+      "name": "Dashboard",
+      "description": "Aggregate the authenticated user's dashboard totals."
     },
     {
       "name": "Jobs",

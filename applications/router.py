@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
 from api.openapi import error_responses
+from api.schemas.common.dates import ISODate
 from api.schemas.requests.applications import ApplicationCreate, ApplicationFieldsUpdate, ApplicationStatusUpdate
 from api.schemas.responses.applications import ApplicationJournalPage, ApplicationJournalResponse
 from applications.application_service import (
@@ -14,7 +15,7 @@ from applications.application_service import (
 )
 from auth.security import get_current_user
 from shared.database import get_db
-from shared.models import User
+from shared.models import ApplicationStatus, User
 
 router = APIRouter(prefix="/applications")
 
@@ -41,7 +42,9 @@ def create_application_entry(
     response_model=ApplicationJournalPage,
     status_code=status.HTTP_200_OK,
     summary="List application entries",
-    description="Lists the authenticated user's application entries with optional job filters and pagination.",
+    description=(
+        "Lists the authenticated user's application entries with optional job, status, date and pagination filters."
+    ),
     tags=["Applications"],
     responses=error_responses(401, 422, 500),
 )
@@ -51,17 +54,27 @@ def list_application_entries(
     location: str | None = Query(
         default=None, description="Case-insensitive job-location filter.", examples=["Remote"]
     ),
+    application_status: ApplicationStatus | None = Query(
+        default=None, alias="status", description="Filter by current application status."
+    ),
+    follow_up_from: ISODate | None = Query(default=None, description="Inclusive earliest follow-up date."),
+    follow_up_to: ISODate | None = Query(default=None, description="Inclusive latest follow-up date."),
     page: int = Query(1, ge=1, description="One-based page number.", examples=[1]),
     limit: int = Query(20, ge=1, le=100, description="Maximum entries per page.", examples=[20]),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    if follow_up_from is not None and follow_up_to is not None and follow_up_from > follow_up_to:
+        raise HTTPException(status_code=422, detail="follow_up_from must not be after follow_up_to")
     return list_applications(
         db,
         current_user.id,
         title=title,
         company=company,
         location=location,
+        application_status=application_status,
+        follow_up_from=follow_up_from,
+        follow_up_to=follow_up_to,
         page=page,
         limit=limit,
     )

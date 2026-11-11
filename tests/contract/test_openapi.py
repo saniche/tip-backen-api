@@ -77,6 +77,23 @@ def test_docs_and_openapi_routes_return_success(client):
         assert client.get(path).status_code == 200
 
 
+def test_dashboard_and_application_filters_are_documented():
+    schema = app.openapi()
+    dashboard = schema["paths"]["/api/v1/dashboard/summary"]["get"]
+    assert dashboard["security"] == [{"BearerAuth": []}]
+    assert {parameter["name"] for parameter in dashboard["parameters"]} == {"today", "follow_up_limit"}
+    assert dashboard["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/DashboardSummaryResponse"
+    }
+    application_list = schema["paths"]["/api/v1/applications"]["get"]
+    assert {"status", "follow_up_from", "follow_up_to"} <= {
+        parameter["name"] for parameter in application_list["parameters"]
+    }
+    assert {"matching_reports", "tailoring_requests"} <= set(
+        schema["components"]["schemas"]["DashboardSummaryResponse"]["properties"]
+    )
+
+
 def test_validation_errors_use_the_shared_error_envelope(client):
     response = client.post("/api/v1/auth/register", json={"email": "candidate@example.com"})
     assert response.status_code == 422

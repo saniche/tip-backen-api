@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from math import ceil
 
 from fastapi import HTTPException
@@ -177,11 +177,20 @@ def list_applications(
     location: str | None,
     page: int,
     limit: int,
+    application_status: ApplicationStatus | None = None,
+    follow_up_from: date | None = None,
+    follow_up_to: date | None = None,
 ) -> dict:
     conditions = [ApplicationJournal.user_id == user_id]
     for value, column in ((title, Job.title), (company, Job.company), (location, Job.location)):
         if value and value.strip():
             conditions.append(column.ilike(contains_pattern(value), escape="\\"))
+    if application_status is not None:
+        conditions.append(ApplicationJournal.status == application_status)
+    if follow_up_from is not None:
+        conditions.append(ApplicationJournal.follow_up_date >= follow_up_from)
+    if follow_up_to is not None:
+        conditions.append(ApplicationJournal.follow_up_date <= follow_up_to)
 
     total = db.scalar(
         select(func.count(ApplicationJournal.id)).join(Job, Job.id == ApplicationJournal.job_id).where(*conditions)

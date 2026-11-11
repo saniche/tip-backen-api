@@ -13,6 +13,7 @@ import candidate_profile.profile_builder_router as profile_builder_router
 import candidate_profile.profiles_router as profiles_router
 import cv.cv_tailoring_router as cv_tailoring_router
 import cv.download_router as download_router
+import dashboard.router as dashboard_router
 import defaults.defaults_router as defaults_router
 import jobs.job_normalizer as job_normalizer
 import matching.job_matching_router as job_matching_router
@@ -34,6 +35,7 @@ logging.basicConfig(
 OPENAPI_TAGS = [
     {"name": "Auth", "description": "Account registration and token creation."},
     {"name": "Applications", "description": "Track job applications and status history."},
+    {"name": "Dashboard", "description": "Aggregate the authenticated user's dashboard totals."},
     {"name": "Jobs", "description": "Normalize, search, and save job postings."},
     {"name": "Matching", "description": "Compare profiles with jobs and manage match reports."},
     {"name": "Profiles", "description": "Manage profile data and profile versions."},
@@ -198,6 +200,7 @@ def ready():
 
 app.include_router(auth_router.router, prefix="/api/v1")
 app.include_router(applications_router.router, prefix="/api/v1")
+app.include_router(dashboard_router.router, prefix="/api/v1")
 app.include_router(job_normalizer.router, prefix="/api/v1")
 app.include_router(job_matching_router.router, prefix="/api/v1")
 app.include_router(profile_builder_router.router, prefix="/api/v1")
