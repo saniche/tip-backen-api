@@ -13,7 +13,7 @@ def test_cv_experience_validates_profile_fields_and_reports_failure_to_owner(cli
         "/api/v1/auth/register", json={"email": "cv-experience@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put(
+    client.post(
         "/api/v1/profile",
         headers=headers,
         json={
@@ -79,7 +79,7 @@ def test_cv_skills_do_not_trigger_grounding_retries(client, monkeypatch):
         "/api/v1/auth/register", json={"email": "cv-grounding@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put(
+    client.post(
         "/api/v1/profile",
         headers=headers,
         json={"data": {"summary": "Python engineer", "skills": ["Python"], "soft_skills": ["Communication"],
@@ -125,7 +125,7 @@ def test_cv_processing_persists_markdown_and_expiring_download_url(client):
         "/api/v1/auth/register", json={"email": "cv-int@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {
+    client.post("/api/v1/profile", headers=headers, json={"data": {
         "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
     }})
     job = client.post(
@@ -152,7 +152,7 @@ def test_cv_provider_failure_publishes_no_record(client, monkeypatch):
         "/api/v1/auth/register", json={"email": "cv-failure@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {
+    client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
     }})
     job = client.post(
@@ -179,7 +179,7 @@ def test_cv_invalid_structured_output_publishes_no_record(client, monkeypatch):
         "/api/v1/auth/register", json={"email": "cv-invalid@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {
+    client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
     }})
     job = client.post(
@@ -205,7 +205,7 @@ def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch, tmp_pa
         "/api/v1/auth/register", json={"email": "cv-upload-failure@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {
+    client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
     }})
     job = client.post(
@@ -236,7 +236,7 @@ def test_later_multi_cv_failure_deletes_earlier_uploaded_blob(client, monkeypatc
         "/api/v1/auth/register", json={"email": "cv-multi-failure@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {
+    client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
     }})
     job_ids = []

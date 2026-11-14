@@ -7,13 +7,13 @@ def test_cv_tailoring_and_download_flow(client):
     ]
     headers = {"Authorization": f"Bearer {token}"}
 
-    profile = client.put(
+    profile = client.post(
         "/api/v1/profile",
         headers=headers,
         json={"data": {"summary": "Python engineer", "skills": ["Python", "FastAPI"],
                        "WorkExperiences": [{"Title": "Engineer"}]}},
     )
-    assert profile.status_code == 200
+    assert profile.status_code == 201
 
     job = client.post(
         "/api/v1/jobs/normalize",

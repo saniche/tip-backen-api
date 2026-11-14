@@ -10,7 +10,7 @@ API = "/api/v1"
 def _matches(client, email, count=1):
     token = client.post(f"{API}/auth/register", json={"email": email, "password": "password123"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    user_id = client.put(
+    user_id = client.post(
         f"{API}/profile", headers=headers, json={"data": {
             "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
         }}

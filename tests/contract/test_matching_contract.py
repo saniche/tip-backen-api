@@ -10,7 +10,7 @@ def test_matching_contract_ranks_results_and_denies_other_owner(client):
         "/api/v1/auth/register", json={"email": "match-other@example.com", "password": "password123"}
     ).json()
     headers = {"Authorization": f"Bearer {first['access_token']}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python", "FastAPI"]}})
+    client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python", "FastAPI"]}})
     job = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,
@@ -44,7 +44,7 @@ def test_matching_contract_returns_safe_provider_failure(client, monkeypatch):
         "/api/v1/auth/register", json={"email": "match-provider-failure@example.com", "password": "password123"}
     ).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
     job = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,

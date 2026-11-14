@@ -13,6 +13,8 @@ def test_profile_session_upload_and_edit_preserves_profile(client):
     assert uploaded.status_code == 202
     profile = client.get("/api/v1/profile", headers=headers)
     assert profile.status_code == 200
-    updated = client.put("/api/v1/profile", headers=headers, json={"data": {"summary": "confirmed"}})
+    updated = client.put(
+        f"/api/v1/profile/{profile.json()['id']}", headers=headers, json={"data": {"summary": "confirmed"}}
+    )
     assert updated.status_code == 200
     assert updated.json()["data"]["summary"] == "confirmed"

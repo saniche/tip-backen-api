@@ -107,5 +107,5 @@ def test_job_invalid_structured_output_is_not_matchable(client, monkeypatch):
     ).json()
 
     assert client.get(f"/api/v1/processing-jobs/{created['processing_job_id']}", headers=headers).json()["status"] == "failed"
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
     assert client.post("/api/v1/matching", headers=headers, json={"job_ids": [created["id"]]}).status_code == 400

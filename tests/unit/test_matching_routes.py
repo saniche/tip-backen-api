@@ -38,7 +38,7 @@ def test_matching_report_routes_exist_and_scope_by_owner(client):
         "skills": ["Python", "FastAPI", "SQL"],
         "job_preferences": {"roles": ["Python Engineer"]},
     }
-    client.put("/api/v1/profile", headers=headers, json={"data": profile_row})
+    client.post("/api/v1/profile", headers=headers, json={"data": profile_row})
 
     response = client.post(
         "/api/v1/matching", headers=headers, json={"job_ids": [first.json()["id"], second.json()["id"]]}

@@ -6,7 +6,7 @@ def test_profile_to_cv_acceptance_flow(client):
         "access_token"
     ]
     headers = {"Authorization": f"Bearer {token}"}
-    client.put(
+    client.post(
         "/api/v1/profile",
         headers=headers,
         json={"data": {"summary": "Python engineer", "skills": ["Python", "FastAPI"],

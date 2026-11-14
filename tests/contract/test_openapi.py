@@ -72,6 +72,16 @@ def test_file_upload_and_download_contracts_are_documented():
     assert "X-Temporary-Download-URL" in download["headers"]
 
 
+def test_profile_create_and_targeted_update_are_documented():
+    paths = app.openapi()["paths"]
+    assert "post" in paths["/api/v1/profile"]
+    assert "put" not in paths["/api/v1/profile"]
+    update = paths["/api/v1/profile/{profile_id}"]["put"]
+    assert any(item["name"] == "profile_id" and item["required"] for item in update["parameters"])
+    assert "404" in update["responses"]
+    assert update["security"] == [{"BearerAuth": []}]
+
+
 def test_docs_and_openapi_routes_return_success(client):
     for path in ("/docs", "/redoc", "/openapi.json"):
         assert client.get(path).status_code == 200

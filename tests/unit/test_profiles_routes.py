@@ -26,8 +26,7 @@ def _add_profile(email_user_id, summary, created_offset):
 
 
 def _user_id(client, headers):
-    # the legacy PUT creates the first profile; its user_id is exposed in the response
-    return client.put("/api/v1/profile", headers=headers, json={"data": {"summary": "first"}}).json()["user_id"]
+    return client.post("/api/v1/profile", headers=headers, json={"data": {"summary": "first"}}).json()["user_id"]
 
 
 def test_list_marks_latest_as_default_and_hides_data(client):
@@ -46,9 +45,10 @@ def test_list_marks_latest_as_default_and_hides_data(client):
 
 def test_current_profile_label_is_returned_by_update_and_get(client):
     headers = _auth(client, "profile-label@example.com")
+    created = client.post("/api/v1/profile", headers=headers, json={"data": {}})
 
     updated = client.put(
-        "/api/v1/profile",
+        f"/api/v1/profile/{created.json()['id']}",
         headers=headers,
         json={"data": {"summary": "Python engineer"}, "label": "Engineering profile"},
     )
@@ -60,6 +60,59 @@ def test_current_profile_label_is_returned_by_update_and_get(client):
 
     assert current.status_code == 200
     assert current.json()["label"] == "Engineering profile"
+
+
+def test_put_updates_selected_profile_without_changing_default(client):
+    headers = _auth(client, "put-selected@example.com")
+    first = client.post(
+        "/api/v1/profile",
+        headers=headers,
+        json={"data": {"summary": "first", "skills": ["Python"]}, "output_language": "French"},
+    )
+    second = client.post(
+        "/api/v1/profile", headers=headers, json={"data": {"summary": "second"}, "output_language": "French"}
+    )
+    assert first.status_code == second.status_code == 201
+    older, newest = first.json()["id"], second.json()["id"]
+    assert older != newest
+    assert client.get("/api/v1/profile", headers=headers).json()["id"] == newest
+    with TestingSessionLocal() as db:
+        db.get(UserProfile, older).evidence = {"summary": "extracted", "skills": "extracted"}
+        db.commit()
+
+    updated = client.put(
+        f"/api/v1/profile/{older}",
+        headers=headers,
+        json={"data": {"summary": {"value": "edited"}}, "label": " Backend "},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["id"] == older
+    assert updated.json()["data"] == {"summary": "edited", "skills": ["Python"]}
+    assert updated.json()["label"] == "Backend"
+    assert updated.json()["output_language"] == "English"
+    assert client.get("/api/v1/profile", headers=headers).json() == second.json()
+    with TestingSessionLocal() as db:
+        assert db.get(UserProfile, older).evidence == {"summary": "user_edited", "skills": "extracted"}
+
+
+def test_put_rejects_missing_deleted_and_other_users_profiles(client):
+    owner = _auth(client, "put-owner@example.com")
+    other = _auth(client, "put-other@example.com")
+    assert client.post("/api/v1/profile", json={"data": {}}).status_code == 401
+    assert client.post("/api/v1/profile", headers=owner, json={}).status_code == 422
+    profile = client.post("/api/v1/profile", headers=owner, json={"data": {"summary": "private"}}).json()
+    path = f"/api/v1/profile/{profile['id']}"
+
+    assert client.put(path, headers=other, json={"data": {"summary": "intrusion"}}).status_code == 404
+    assert client.put("/api/v1/profile/missing", headers=owner, json={"data": {}}).status_code == 404
+    assert client.put(path, json={"data": {}}).status_code == 401
+    assert client.put(path, headers=owner, json={"output_language": "English"}).status_code == 422
+    assert client.get("/api/v1/profile", headers=owner).json() == profile
+    assert client.delete(f"/api/v1/profiles/{profile['id']}", headers=owner).status_code == 204
+    assert client.put(path, headers=owner, json={"data": {"summary": "revived"}}).status_code == 404
+    assert client.get("/api/v1/profiles", headers=owner).json() == []
+    assert client.put("/api/v1/profile", headers=owner, json={"data": {}}).status_code == 405
 
 
 def test_patch_updates_label_and_data_without_changing_default(client):

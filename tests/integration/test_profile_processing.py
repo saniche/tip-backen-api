@@ -165,7 +165,9 @@ def test_profile_processing_completes_and_preserves_edit(client):
         time.sleep(0.01)
     assert profile.status_code == 200
 
-    updated = client.put("/api/v1/profile", headers=headers, json={"data": {"summary": "user confirmed"}})
+    updated = client.put(
+        f"/api/v1/profile/{profile.json()['id']}", headers=headers, json={"data": {"summary": "user confirmed"}}
+    )
     assert updated.status_code == 200
     assert updated.json()["data"]["summary"] == "user confirmed"
 

@@ -16,7 +16,7 @@ API = "/api/v1"
 def _setup(client, email, job_count=2):
     token = client.post(f"{API}/auth/register", json={"email": email, "password": "password123"}).json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    user_id = client.put(
+    user_id = client.post(
         f"{API}/profile", headers=headers, json={"data": {
             "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
         }}
@@ -233,8 +233,9 @@ def test_cover_letter_provider_failure_logs_safe_details_and_returns_generic_err
 
 def test_cv_experience_dates_are_reconciled_and_document_is_private(client, monkeypatch):
     headers, _, jobs = _setup(client, "experience-owner@example.com", job_count=1)
+    profile_id = client.get(f"{API}/profile", headers=headers).json()["id"]
     client.put(
-        f"{API}/profile",
+        f"{API}/profile/{profile_id}",
         headers=headers,
         json={
             "data": {

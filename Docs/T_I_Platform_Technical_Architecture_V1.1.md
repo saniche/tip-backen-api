@@ -194,7 +194,8 @@ POST   /api/v1/profile/sessions
 POST   /api/v1/profile/sessions/{sessionId}/files
 GET    /api/v1/profile/sessions/{sessionId}
 GET    /api/v1/profile
-PUT    /api/v1/profile
+POST   /api/v1/profile
+PUT    /api/v1/profile/{profileId}
 ```
 
 #### Job API

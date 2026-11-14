@@ -16,7 +16,7 @@ from api.schemas.responses.profiles import (
 )
 from auth.security import get_current_user
 from candidate_profile.profile_builder import extract_profile
-from candidate_profile.profile_service import apply_profile_edits, merge_profile_values
+from candidate_profile.profile_service import apply_profile_edits, get_owned_profile, merge_profile_values
 from shared.database import SessionLocal, get_db
 from shared.document_text import DOCX_CONTENT_TYPE, DocumentTextError, extract_docx_text
 from shared.models import (
@@ -265,33 +265,52 @@ def get_profile(current_user: User = Depends(get_current_user), db: Session = De
     }
 
 
-@router.put(
+@router.post(
     "/profile",
     response_model=CurrentProfileResponse,
-    status_code=200,
-    summary="Replace current profile data",
-    description="Creates or updates the authenticated user's latest active profile.",
+    status_code=201,
+    summary="Create a profile",
+    description="Creates a profile for the authenticated user.",
     tags=["Profiles"],
     responses=error_responses(401, 422, 500),
 )
-def update_profile(
+def create_profile(
     payload: ProfileUpdate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ):
-    profile = (
-        db.execute(
-            select(UserProfile)
-            .where(
-                UserProfile.user_id == current_user.id,
-                UserProfile.deleted_at.is_(None),
-            )
-            .order_by(desc(UserProfile.created_at))
-        )
-        .scalars()
-        .first()
+    profile = UserProfile(
+        user_id=current_user.id, data={}, evidence={}, output_language=payload.output_language, label=payload.label
     )
+    db.add(profile)
+    apply_profile_edits(profile, payload.data, payload.output_language, payload.label)
+    db.commit()
+    db.refresh(profile)
+    return {
+        "id": profile.id,
+        "user_id": profile.user_id,
+        "data": profile.data,
+        "output_language": profile.output_language,
+        "label": profile.label,
+    }
+
+
+@router.put(
+    "/profile/{profile_id}",
+    response_model=CurrentProfileResponse,
+    status_code=200,
+    summary="Update a profile",
+    description="Updates an active profile owned by the authenticated user.",
+    tags=["Profiles"],
+    responses=error_responses(401, 404, 422, 500),
+)
+def update_profile(
+    profile_id: str,
+    payload: ProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    profile = get_owned_profile(db, current_user.id, profile_id)
     if profile is None:
-        profile = UserProfile(user_id=current_user.id, data={}, evidence={}, output_language=payload.output_language, label=payload.label)
-        db.add(profile)
+        raise HTTPException(404, "Profile not found")
     apply_profile_edits(profile, payload.data, payload.output_language, payload.label)
     db.commit()
     db.refresh(profile)
