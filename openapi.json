@@ -2564,13 +2564,13 @@
           }
         ]
       },
-      "put": {
+      "post": {
         "tags": [
           "Profiles"
         ],
-        "summary": "Replace current profile data",
-        "description": "Creates or updates the authenticated user's latest active profile.",
-        "operationId": "profiles_put_update_profile_api_v1_profile",
+        "summary": "Create a profile",
+        "description": "Creates a profile for the authenticated user.",
+        "operationId": "profiles_post_create_profile_api_v1_profile",
         "requestBody": {
           "content": {
             "application/json": {
@@ -2582,7 +2582,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -2628,6 +2628,94 @@
             "BearerAuth": []
           }
         ]
+      }
+    },
+    "/api/v1/profile/{profile_id}": {
+      "put": {
+        "tags": [
+          "Profiles"
+        ],
+        "summary": "Update a profile",
+        "description": "Updates an active profile owned by the authenticated user.",
+        "operationId": "profiles_put_update_profile_api_v1_profile_by_profile_id",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Profile Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication is required or the bearer token is invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested resource was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request body, query parameters, or uploaded file are invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The service could not complete the request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/profiles": {

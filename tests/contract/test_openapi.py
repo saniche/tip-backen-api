@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from db import models as db_models
@@ -80,6 +81,11 @@ def test_profile_create_and_targeted_update_are_documented():
     assert any(item["name"] == "profile_id" and item["required"] for item in update["parameters"])
     assert "404" in update["responses"]
     assert update["security"] == [{"BearerAuth": []}]
+
+
+def test_exported_openapi_matches_live_schema():
+    exported = json.loads(Path("openapi.json").read_text(encoding="utf-8"))
+    assert exported == app.openapi()
 
 
 def test_docs_and_openapi_routes_return_success(client):
