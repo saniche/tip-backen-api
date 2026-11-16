@@ -571,7 +571,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('returns the current profile', () => {\n  pm.response.to.have.status(200);\n  let body = pm.response.json();\n    pm.expect(body).to.have.property('data');\n    pm.expect(body.data).to.have.property('summary');\n    pm.expect(body.data).to.have.property('name');\n    pm.expect(body.data).to.have.property('email');\n    pm.expect(body.data).to.have.property('phone');\n    pm.expect(body.data).to.have.property('location');\n\n    pm.collectionVariables.set(\"profileData\", JSON.stringify(body));\n});"
+                  "pm.test('returns the current profile', () => {\n  pm.response.to.have.status(200);\n  const body = pm.response.json();\n  pm.expect(body).to.have.property('id');\n  pm.expect(body.data).to.have.property('summary');\n  pm.expect(body.data).to.have.property('name');\n  pm.expect(body.data).to.have.property('email');\n  pm.expect(body.data).to.have.property('phone');\n  pm.expect(body.data).to.have.property('location');\n  pm.collectionVariables.set('profile_id', body.id);\n  pm.collectionVariables.set('profileData', JSON.stringify(body.data));\n});"
                 ]
               }
             },
@@ -606,6 +606,40 @@
           "response": []
         },
         {
+          "name": "Create profile - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('creates a separate profile', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.id).to.not.eql(pm.collectionVariables.get('profile_id'));",
+                  "  pm.expect(body.data.summary).to.eql('Temporary default');",
+                  "  pm.collectionVariables.set('temporary_profile_id', body.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"Temporary default\"}}" },
+            "url": {
+              "raw": "{{api_url}}/profile",
+              "host": ["{{api_url}}"],
+              "path": ["profile"]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Update profile - success",
           "event": [
             {
@@ -613,7 +647,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('creates or updates the canonical profile', () => {\n  pm.response.to.have.status(200);\n  const name =  pm.variables.get(\"name\");\n  pm.expect(pm.response.json().data.name).to.be.equals(name);\n});"
+                  "pm.test('updates the selected profile', () => {\n  pm.response.to.have.status(200);\n  const body = pm.response.json();\n  pm.expect(body.id).to.eql(pm.collectionVariables.get('profile_id'));\n  pm.expect(body.data.name).to.eql(pm.variables.get('name'));\n  pm.collectionVariables.set('updated_profile_data', JSON.stringify(body.data));\n});"
                 ]
               }
             },
@@ -649,12 +683,13 @@
               }
             },
             "url": {
-              "raw": "{{api_url}}/profile",
+              "raw": "{{api_url}}/profile/{{profile_id}}",
               "host": [
                 "{{api_url}}"
               ],
               "path": [
-                "profile"
+                "profile",
+                "{{profile_id}}"
               ]
             }
           },
@@ -692,14 +727,181 @@
               "raw": "{\n  \"output_language\": \"English\"\n}"
             },
             "url": {
-              "raw": "{{api_url}}/profile",
+              "raw": "{{api_url}}/profile/{{profile_id}}",
               "host": [
                 "{{api_url}}"
               ],
               "path": [
-                "profile"
+                "profile",
+                "{{profile_id}}"
               ]
             }
+          },
+          "response": []
+        },
+        {
+          "name": "Get default after updating older profile",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('the newer profile remains the default and is unchanged', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('temporary_profile_id'));",
+              "  pm.expect(pm.response.json().data.summary).to.eql('Temporary default');",
+              "});"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{api_url}}/profile", "host": ["{{api_url}}"], "path": ["profile"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update profile - missing failure",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('does not create a missing profile', () => pm.response.to.have.status(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"missing\"}}" },
+            "url": {
+              "raw": "{{api_url}}/profile/{{unknown_id}}",
+              "host": ["{{api_url}}"],
+              "path": ["profile", "{{unknown_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register profile isolation user",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "pm.variables.set('profile_other_email', `profile-other-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`);"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('registers another user', () => {",
+              "  pm.response.to.have.status(201);",
+              "  pm.collectionVariables.set('profile_other_token', pm.response.json().access_token);",
+              "});"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"{{profile_other_email}}\",\"password\":\"{{password}}\"}" },
+            "url": {
+              "raw": "{{api_url}}/auth/register",
+              "host": ["{{api_url}}"],
+              "path": ["auth", "register"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update profile - other owner failure",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('hides another user\\u0027s profile', () => pm.response.to.have.status(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{profile_other_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"intrusion\"}}" },
+            "url": {
+              "raw": "{{api_url}}/profile/{{profile_id}}",
+              "host": ["{{api_url}}"],
+              "path": ["profile", "{{profile_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get profile after unauthorized update",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('the selected profile remains unchanged', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().data).to.eql(JSON.parse(pm.collectionVariables.get('updated_profile_data')));",
+              "});"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{api_url}}/profiles/{{profile_id}}",
+              "host": ["{{api_url}}"],
+              "path": ["profiles", "{{profile_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete temporary profile",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('deletes the temporary profile', () => pm.response.to.have.status(204));"
+            ] } }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": {
+              "raw": "{{api_url}}/profiles/{{temporary_profile_id}}",
+              "host": ["{{api_url}}"],
+              "path": ["profiles", "{{temporary_profile_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update profile - deleted failure",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('does not update a deleted profile', () => pm.response.to.have.status(404));"
+            ] } }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"revived\"}}" },
+            "url": {
+              "raw": "{{api_url}}/profile/{{temporary_profile_id}}",
+              "host": ["{{api_url}}"],
+              "path": ["profile", "{{temporary_profile_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get restored default profile",
+          "event": [
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('the original profile is the default again', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('profile_id'));",
+              "  pm.expect(pm.response.json().data).to.eql(JSON.parse(pm.collectionVariables.get('updated_profile_data')));",
+              "});"
+            ] } }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "url": { "raw": "{{api_url}}/profile", "host": ["{{api_url}}"], "path": ["profile"] }
           },
           "response": []
         }

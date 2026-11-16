@@ -194,6 +194,11 @@ Content-Type: application/json
 {"output_language": "French"}
 ```
 
+Use `POST /api/v1/profile` with `{"data": {...}}` to create a profile, and
+`PUT /api/v1/profile/{profile_id}` to merge edits into an existing profile. The update returns 404
+for missing, deleted, or other users' profiles. `GET /api/v1/profile` returns the newest active
+profile; updating an older profile does not make it the default.
+
 Skill levels are `Expert`, `Advanced`, `Intermediate`, or `Beginner`, ordered from highest to
 lowest. They are based only on experience duration and contributions supported by the resume;
 skills without enough evidence for a level are omitted.

@@ -77,6 +77,10 @@ folder is a prerequisite that supplies a real job for successful matching tests.
 return `202 Accepted`; the collection polls the matching processing job before requesting report
 results.
 
+The profile folder creates a temporary second profile, updates the original by ID, checks that the
+default is unchanged and that another user cannot edit it, then deletes the temporary profile so
+subsequent folders use the original.
+
 Profile session, job normalization, matching, and CV tailoring status requests poll immediately, then
 wait five seconds between up to 30 retries. This allows up to 2 minutes 30 seconds of waiting, plus
 HTTP request time. If processing fails or is still in progress after the final retry, the collection

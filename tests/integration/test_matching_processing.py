@@ -8,7 +8,7 @@ def test_matching_processing_persists_ranked_results_and_safe_owner_scope(client
         "/api/v1/auth/register", json={"email": "match-int@example.com", "password": "password123"}
     ).json()
     headers = {"Authorization": f"Bearer {user['access_token']}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
     first = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,
@@ -111,7 +111,7 @@ def test_matching_invalid_structured_output_returns_safe_failure(client, monkeyp
         "/api/v1/auth/register", json={"email": "match-invalid@example.com", "password": "password123"}
     ).json()
     headers = {"Authorization": f"Bearer {user['access_token']}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
+    client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
     job = client.post(
         "/api/v1/jobs/normalize", headers=headers,
         json={"url": "https://jobs.test/match-invalid", "content": "Python", "title": "Python Engineer"},

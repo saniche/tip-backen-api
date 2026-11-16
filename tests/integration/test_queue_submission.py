@@ -13,7 +13,7 @@ def test_unavailable_redis_rejects_submission_without_committing(client, databas
         "/api/v1/auth/register", json={"email": "queue-user@example.com", "password": "password123"}
     ).json()
     headers = {"Authorization": f"Bearer {registration['access_token']}"}
-    client.put("/api/v1/profile", headers=headers, json={"data": {"summary": "Python", "skills": ["Python"]}})
+    client.post("/api/v1/profile", headers=headers, json={"data": {"summary": "Python", "skills": ["Python"]}})
     job = client.post(
         "/api/v1/jobs/normalize",
         headers=headers,
