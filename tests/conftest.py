@@ -1,13 +1,15 @@
 import json
 import os
 
-os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
+os.environ["KEYCLOAK_ISSUER"] = "http://keycloak.test/realms/job-process"
+os.environ["KEYCLOAK_AUDIENCE"] = "job-process-api"
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("AZURE_STORAGE_CONNECTION_STRING", "UseDevelopmentStorage=true")
 
 import pytest
 from fastapi.testclient import TestClient
 
+import auth.security as auth_security
 import candidate_profile.profile_builder as profile_builder
 import candidate_profile.profile_builder_router as profile_builder_router
 import cover_letter.cover_letter_tailoring as cover_letter_tailoring
@@ -23,6 +25,7 @@ from main import app
 from shared.database import Base, TestingSessionLocal, get_db, get_testing_db, testing_engine
 from shared.models import ProcessingOutbox
 from shared.worker import _run_handler
+from tests.keycloak_stub import issue_token, jwks
 
 
 @pytest.fixture(autouse=True)
@@ -35,6 +38,15 @@ def database():
     Base.metadata.create_all(testing_engine)
     yield
     Base.metadata.drop_all(testing_engine)
+
+
+@pytest.fixture(autouse=True)
+def keycloak_jwks(monkeypatch):
+    """Serve the in-memory test signing key as the realm JWKS instead of calling Keycloak."""
+    auth_security.jwks_cache.clear()
+    monkeypatch.setattr(auth_security.jwks_cache, "_fetch", lambda: jwks())
+    yield
+    auth_security.jwks_cache.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -166,5 +178,4 @@ def client():
 
 @pytest.fixture
 def user(client):
-    response = client.post("/api/v1/auth/register", json={"email": "user@example.com", "password": "password123"})
-    return response.json()
+    return issue_token(client, "user@example.com")

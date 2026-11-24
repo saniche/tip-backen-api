@@ -1,8 +1,10 @@
 import time
 
+from tests.keycloak_stub import issue_token
+
 
 def _profile_and_match(client, email, url):
-    token = client.post("/api/v1/auth/register", json={"email": email, "password": "password123"}).json()[
+    token = issue_token(client, email)[
         "access_token"
     ]
     headers = {"Authorization": f"Bearer {token}"}
@@ -38,9 +40,7 @@ def test_cv_contract_supports_group_all_and_owner_scoped_crud(client):
 
 def test_cv_contract_denies_cross_owner_access(client):
     owner_headers, matching_id = _profile_and_match(client, "cv-owner@example.com", "https://jobs.test/cv-owner")
-    other_token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-other@example.com", "password": "password123"}
-    ).json()["access_token"]
+    other_token = issue_token(client, "cv-other@example.com")["access_token"]
     other_headers = {"Authorization": f"Bearer {other_token}"}
     response = client.post("/api/v1/cv/tailor", headers=owner_headers, json={"matching_id": matching_id})
     for _ in range(20):

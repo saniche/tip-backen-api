@@ -3,12 +3,13 @@ import time
 import cv.cv_tailoring_router as cv_tailoring_router
 from cv.cv_tailoring import EmptyExperienceError
 from shared import storage
+from tests.keycloak_stub import issue_token
 
 API = "/api/v1"
 
 
 def _matches(client, email, count=1):
-    token = client.post(f"{API}/auth/register", json={"email": email, "password": "password123"}).json()["access_token"]
+    token = issue_token(client, email)["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     user_id = client.post(
         f"{API}/profile", headers=headers, json={"data": {

@@ -84,10 +84,50 @@ Copy `.env.example` to `.env`. The application loads `.env` automatically:
 Copy-Item .env.example .env
 ```
 
-Required values include `DATABASE_URL` and `JWT_SECRET_KEY`. Azure Blob Storage uses
+Required values include `DATABASE_URL` and the Keycloak settings (see **Authentication** below). Azure Blob Storage uses
 `AZURE_STORAGE_CONNECTION_STRING` and `CV_BLOB_CONTAINER`. When using a real Azure account,
 temporary download URLs also use `AZURE_STORAGE_ACCOUNT_NAME` and `AZURE_STORAGE_ACCOUNT_KEY`.
 Never commit `.env` or expose these credentials; rotate any credential that has been shared.
+
+### Authentication (Keycloak)
+
+The API does not store passwords or issue tokens. Users sign in and register through
+[Keycloak](https://www.keycloak.org/) (OIDC). The API only validates Keycloak RS256 access tokens
+against the realm JWKS, checking the signature, `exp`, `iss` and `aud`.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `KEYCLOAK_SERVER_URL` | `http://localhost:8080` | Keycloak base URL |
+| `KEYCLOAK_REALM` | `job-process` | Realm name |
+| `KEYCLOAK_AUDIENCE` | `job-process-api` | Required value in the token `aud` claim |
+| `KEYCLOAK_ADMIN_ROLE` | `admin` | Realm or client role that maps to the platform `admin` role |
+| `KEYCLOAK_ISSUER` | `<server>/realms/<realm>` | Override when the public issuer URL differs |
+| `KEYCLOAK_JWKS_URL` | `<issuer>/protocol/openid-connect/certs` | Override for back-channel key fetches |
+| `KEYCLOAK_JWKS_CACHE_SECONDS` | `3600` | How long signing keys are cached |
+
+For the full step-by-step setup, dev users, front-end settings and troubleshooting, see
+[Docs/keycloak-local-dev.md](Docs/keycloak-local-dev.md).
+
+Start a local Keycloak with the development realm (clients `job-process-web` for the SPA with
+PKCE and `job-process-dev` for password-grant testing, plus the dev users from
+`keycloak/realm-export.json`):
+
+```powershell
+docker compose -f docker-compose.postman.yml up -d keycloak
+```
+
+Get a dev token and call the API:
+
+```powershell
+$token = (Invoke-RestMethod -Method Post -Uri http://localhost:8080/realms/job-process/protocol/openid-connect/token -Body @{ grant_type='password'; client_id='job-process-dev'; username='candidate@example.com'; password='DevPassword123!' }).access_token
+Invoke-RestMethod -Uri http://localhost:8000/api/v1/auth/me -Headers @{ Authorization = "Bearer $token" }
+```
+
+The first authenticated request creates the local `users` row (`keycloak_sub`, email, names,
+role and `last_login_at`) and later requests keep it in sync. Users that existed before the
+migration are linked by **verified** email on their first Keycloak login. Their passwords are
+not migrated, so they set a new one in Keycloak. The `job-process-dev` client and the dev users
+are for local use only. Don't import them into production.
 
 ### Background processing
 

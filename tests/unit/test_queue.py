@@ -19,7 +19,7 @@ class FakeQueue:
 
 @pytest.mark.asyncio
 async def test_publish_uses_persisted_processing_job_id(database_session):
-    user = User(email="queue@example.com", hashed_password="unused")
+    user = User(email="queue@example.com")
     database_session.add(user)
     database_session.flush()
     job = ProcessingJob(user_id=user.id, job_type=ProcessingJobType.MATCHING)
@@ -34,7 +34,7 @@ async def test_publish_uses_persisted_processing_job_id(database_session):
 
 @pytest.mark.asyncio
 async def test_failed_enqueue_preserves_outbox_for_reconciliation(database_session):
-    user = User(email="queue-failure@example.com", hashed_password="unused")
+    user = User(email="queue-failure@example.com")
     database_session.add(user)
     database_session.flush()
     job = ProcessingJob(user_id=user.id, job_type=ProcessingJobType.MATCHING)

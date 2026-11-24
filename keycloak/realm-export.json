@@ -1,0 +1,107 @@
+{
+  "realm": "job-process",
+  "enabled": true,
+  "registrationAllowed": true,
+  "registrationEmailAsUsername": true,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "verifyEmail": false,
+  "sslRequired": "external",
+  "accessTokenLifespan": 900,
+  "roles": {
+    "realm": [
+      { "name": "user", "description": "Standard platform user" },
+      { "name": "admin", "description": "Platform administrator" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "job-process-api",
+      "name": "Job Process API (resource server)",
+      "enabled": true,
+      "publicClient": false,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    },
+    {
+      "clientId": "job-process-web",
+      "name": "Job Process web app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4200/*",
+        "http://127.0.0.1:4200/*",
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*",
+        "http://localhost:8000/docs/oauth2-redirect"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "job-process-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "job-process-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "job-process-dev",
+      "name": "Local development / Postman (DEV ONLY - do not import in production)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "job-process-api audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "job-process-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "candidate@example.com",
+      "email": "candidate@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Candidate",
+      "credentials": [{ "type": "password", "value": "DevPassword123!", "temporary": false }],
+      "realmRoles": ["user"]
+    },
+    {
+      "username": "admin@example.com",
+      "email": "admin@example.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Dev",
+      "lastName": "Admin",
+      "credentials": [{ "type": "password", "value": "DevAdminPassword123!", "temporary": false }],
+      "realmRoles": ["user", "admin"]
+    }
+  ]
+}

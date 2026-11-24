@@ -1,12 +1,16 @@
+from tests.keycloak_stub import issue_token
+
+
 def test_health_and_readiness(client):
     assert client.get("/health").status_code == 200
     assert client.get("/ready").status_code == 200
 
 
 def test_authentication_and_invalid_token(client):
-    response = client.post("/api/v1/auth/register", json={"email": "a@example.com", "password": "password123"})
-    assert response.status_code == 201
-    assert "access_token" in response.json()
+    token = issue_token(client, "a@example.com")["access_token"]
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    assert me.json()["email"] == "a@example.com"
     assert client.get("/api/v1/profile", headers={"Authorization": "Bearer invalid"}).status_code == 401
 
 

@@ -121,7 +121,7 @@ def test_real_redis_worker_recovers_committed_work(tmp_path, interrupt, backend)
     engine = create_engine(database_url)
     Base.metadata.create_all(engine)
     with Session(engine) as db:
-        user = User(email=f"{uuid.uuid4()}@example.com", hashed_password="unused")
+        user = User(email=f"{uuid.uuid4()}@example.com")
         db.add(user)
         db.flush()
         job = Job(title="Pending", url=f"https://jobs.test/{uuid.uuid4()}", status="pending", submitter_id=user.id)
@@ -143,7 +143,6 @@ def test_real_redis_worker_recovers_committed_work(tmp_path, interrupt, backend)
         "ARQ_JOB_TIMEOUT_SECONDS": "3",
         "ARQ_MAX_ATTEMPTS": "3",
         "ARQ_QUEUE_NAME": f"tip:test:{uuid.uuid4()}",
-        "JWT_SECRET_KEY": "integration-test-secret",
         "AZURE_STORAGE_CONNECTION_STRING": "UseDevelopmentStorage=true",
         "LOCAL_BLOB_DIRECTORY": str(tmp_path / "blobs"),
         "WORKER_LOCK_DIRECTORY": str(tmp_path / "locks"),
@@ -201,7 +200,7 @@ def test_real_worker_stores_documents_for_another_process(tmp_path, monkeypatch,
     engine = create_engine(database_url)
     Base.metadata.create_all(engine)
     with Session(engine) as db:
-        user = User(email=f"{uuid.uuid4()}@example.com", hashed_password="unused")
+        user = User(email=f"{uuid.uuid4()}@example.com")
         db.add(user)
         db.flush()
         profile = UserProfile(user_id=user.id, data={"summary": "Python", "skills": []}, evidence={})
@@ -223,7 +222,6 @@ def test_real_worker_stores_documents_for_another_process(tmp_path, monkeypatch,
     environment.update({
         "DATABASE_URL": database_url,
         "REDIS_URL": redis_url,
-        "JWT_SECRET_KEY": "integration-test-secret",
         "AZURE_STORAGE_CONNECTION_STRING": "UseDevelopmentStorage=true",
         "LOCAL_BLOB_DIRECTORY": blobs,
         "WORKER_LOCK_DIRECTORY": str(tmp_path / "locks"),

@@ -5,13 +5,12 @@ import pytest
 import cv.cv_tailoring as cv_tailoring
 import cv.cv_tailoring_router as cv_tailoring_router
 from shared.llm_structured import StructuredProviderError
+from tests.keycloak_stub import issue_token
 
 
 @pytest.mark.parametrize("valid", [True, False])
 def test_cv_experience_validates_profile_fields_and_reports_failure_to_owner(client, monkeypatch, valid):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-experience@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "cv-experience@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post(
         "/api/v1/profile",
@@ -75,9 +74,7 @@ def test_cv_experience_validates_profile_fields_and_reports_failure_to_owner(cli
 
 
 def test_cv_skills_do_not_trigger_grounding_retries(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-grounding@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "cv-grounding@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post(
         "/api/v1/profile",
@@ -121,9 +118,7 @@ def test_cv_skills_do_not_trigger_grounding_retries(client, monkeypatch):
 
 
 def test_cv_processing_persists_markdown_and_expiring_download_url(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-int@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "cv-int@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {
         "summary": "Python engineer", "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
@@ -148,9 +143,7 @@ def test_cv_processing_persists_markdown_and_expiring_download_url(client):
 
 
 def test_cv_provider_failure_publishes_no_record(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-failure@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "cv-failure@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
@@ -175,9 +168,7 @@ def test_cv_provider_failure_publishes_no_record(client, monkeypatch):
 
 
 def test_cv_invalid_structured_output_publishes_no_record(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-invalid@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "cv-invalid@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
@@ -201,9 +192,7 @@ def test_cv_invalid_structured_output_publishes_no_record(client, monkeypatch):
 
 
 def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch, tmp_path):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-upload-failure@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "cv-upload-failure@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]
@@ -232,9 +221,7 @@ def test_cv_upload_failure_rolls_back_flushed_record(client, monkeypatch, tmp_pa
 
 
 def test_later_multi_cv_failure_deletes_earlier_uploaded_blob(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "cv-multi-failure@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "cv-multi-failure@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {
         "skills": ["Python"], "WorkExperiences": [{"Title": "Engineer"}]

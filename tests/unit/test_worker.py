@@ -17,7 +17,7 @@ def worker_database(monkeypatch, tmp_path):
 
 
 def _create_job(db):
-    user = User(email="worker@example.com", hashed_password="unused")
+    user = User(email="worker@example.com")
     db.add(user)
     db.flush()
     job = Job(title="Example", url="https://jobs.test/worker", status="pending", submitter_id=user.id)

@@ -11,10 +11,11 @@ from main import app
 from shared.database import TestingSessionLocal, testing_engine
 from shared.llm_structured import StructuredProviderError
 from shared.models import Job, JobInterest, User
+from tests.keycloak_stub import issue_token
 
 
 def _register(client, session, email):
-    token = client.post("/api/v1/auth/register", json={"email": email, "password": "password123"}).json()[
+    token = issue_token(client, email)[
         "access_token"
     ]
     return {"Authorization": "Bearer " + token}, session.query(User).filter(User.email == email).one().id
@@ -79,7 +80,7 @@ def _completed_job(session, url):
 
 
 def test_database_rejects_duplicate_user_job_interest(database_session):
-    user = User(email="dup@example.com", hashed_password="hash")
+    user = User(email="dup@example.com")
     database_session.add(user)
     job_id = _completed_job(database_session, "https://jobs.test/dup")
     database_session.add(JobInterest(user_id=user.id, job_id=job_id))
@@ -147,7 +148,7 @@ def _create_application(db, entry_id, user_id, job_id, *, release=release_intere
 
 
 def _interested_user(session, email, url):
-    user = User(email=email, hashed_password="hash")
+    user = User(email=email)
     session.add(user)
     session.flush()
     job = Job(url=url, title="Engineer", status="completed")
@@ -160,7 +161,7 @@ def _interested_user(session, email, url):
 
 def test_release_interest_is_atomic_with_journal_write(database_session, journal):
     user_id, job_id = _interested_user(database_session, "journal-ok@example.com", "https://jobs.test/journal-ok")
-    other = User(email="journal-other@example.com", hashed_password="hash")
+    other = User(email="journal-other@example.com")
     database_session.add(other)
     database_session.flush()
     ensure_interest(database_session, other.id, job_id)

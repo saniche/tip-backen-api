@@ -1,9 +1,10 @@
 from shared.database import TestingSessionLocal
 from shared.models import UserProfile
+from tests.keycloak_stub import issue_token
 
 
 def _auth(client, email):
-    token = client.post("/api/v1/auth/register", json={"email": email, "password": "password123"}).json()[
+    token = issue_token(client, email)[
         "access_token"
     ]
     return {"Authorization": f"Bearer {token}"}

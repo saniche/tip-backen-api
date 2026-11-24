@@ -78,14 +78,15 @@
       "name": "Auth",
       "item": [
         {
-          "name": "Register - success",
+          "name": "Keycloak sign-up and token - success",
           "event": [
             {
               "listen": "prerequest",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "const userName = pm.variables.replaceIn('{{$randomUserName}}');\nconst domain = pm.variables.replaceIn('{{$randomDomainName}}');\nconst email = `${userName}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@${domain}`;\n\nconsole.log(\"email : \",email);\n\npm.collectionVariables.set('email', email);"
+                  "const userName = pm.variables.replaceIn('{{$randomUserName}}');\nconst domain = pm.variables.replaceIn('{{$randomDomainName}}');\nconst email = `${userName}-${Date.now()}-${Math.floor(Math.random() * 1e6)}@${domain}`;\n\nconsole.log(\"email : \",email);\n\npm.collectionVariables.set('email', email);",
+                  "// Dev-only: provision the Keycloak user through the Admin API (replaces the removed /auth/register).\n// Wrapped in its own scope so it cannot clash with variables declared above.\n(() => {\n  const kc = pm.variables.replaceIn('{{keycloak_url}}');\n  const realm = pm.variables.replaceIn('{{keycloak_realm}}');\n  const email = pm.variables.replaceIn('{{email}}');\n  const password = pm.variables.replaceIn('{{password}}');\n  pm.sendRequest({\n    url: `${kc}/realms/master/protocol/openid-connect/token`,\n    method: 'POST',\n    header: { 'Content-Type': 'application/x-www-form-urlencoded' },\n    body: { mode: 'urlencoded', urlencoded: [\n      { key: 'grant_type', value: 'password' },\n      { key: 'client_id', value: 'admin-cli' },\n      { key: 'username', value: pm.variables.replaceIn('{{keycloak_admin_user}}') },\n      { key: 'password', value: pm.variables.replaceIn('{{keycloak_admin_password}}') },\n    ] },\n  }, (adminError, adminResponse) => {\n    if (adminError || adminResponse.code !== 200) { throw new Error('Keycloak admin login failed'); }\n    pm.sendRequest({\n      url: `${kc}/admin/realms/${realm}/users`,\n      method: 'POST',\n      header: {\n        'Content-Type': 'application/json',\n        Authorization: `Bearer ${adminResponse.json().access_token}`,\n      },\n      body: { mode: 'raw', raw: JSON.stringify({\n        username: email, email, emailVerified: true, enabled: true,\n        firstName: 'Postman', lastName: 'User',\n        credentials: [{ type: 'password', value: password, temporary: false }],\n      }) },\n    }, (createError, createResponse) => {\n      if (createError || ![201, 409].includes(createResponse.code)) {\n        throw new Error(`Keycloak user creation failed: ${createResponse && createResponse.code}`);\n      }\n    });\n  });\n})();"
                 ]
               }
             },
@@ -94,52 +95,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('creates a user and returns a bearer token', () => {\n  pm.response.to.have.status(201);\n  const body = pm.response.json();\n  pm.expect(body.access_token).to.be.a('string').and.not.empty;\n  pm.expect(body.token_type).to.eql('bearer');\n  pm.collectionVariables.set('access_token', body.access_token);\n});"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "text"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{api_url}}/auth/register",
-              "host": [
-                "{{api_url}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Register - duplicate email failure",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('rejects duplicate email', () => {",
-                  "  pm.response.to.have.status(400);",
-                  "  pm.expect(pm.response.json().error.message).to.eql('Email already registered');",
+                  "pm.test('Keycloak issues a bearer token for the new user', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.token_type.toLowerCase()).to.eql('bearer');",
+                  "  pm.collectionVariables.set('access_token', body.access_token);",
                   "});"
                 ]
               }
@@ -150,35 +111,105 @@
             "header": [
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/x-www-form-urlencoded"
               }
             ],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloak_client_id}}"
+                },
+                {
+                  "key": "username",
+                  "value": "{{email}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid email profile"
+                }
+              ]
             },
             "url": {
-              "raw": "{{api_url}}/auth/register",
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
               "host": [
-                "{{api_url}}"
+                "{{keycloak_url}}"
               ],
               "path": [
-                "auth",
-                "register"
+                "realms",
+                "{{keycloak_realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
               ]
             }
           },
           "response": []
         },
         {
-          "name": "Login - success",
+          "name": "Get current user - success",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('returns a bearer token', () => {\n  pm.response.to.have.status(200);\n  pm.collectionVariables.set('access_token', pm.response.json().access_token);\n});"
+                  "pm.test('provisions the local user from the Keycloak token', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.email.toLowerCase()).to.eql(pm.collectionVariables.get('email').toLowerCase());",
+                  "  pm.expect(body.role).to.eql('user');",
+                  "  pm.expect(body.id).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/auth/me",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Keycloak login - success",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('returns a bearer token', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.token_type.toLowerCase()).to.eql('bearer');",
+                  "  pm.collectionVariables.set('access_token', body.access_token);",
+                  "});"
                 ]
               }
             }
@@ -188,69 +219,82 @@
             "header": [
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/x-www-form-urlencoded"
               }
             ],
             "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"username\": \"{{email}}\",\r\n    \"password\": \"{{password}}\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "text"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloak_client_id}}"
+                },
+                {
+                  "key": "username",
+                  "value": "{{email}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid email profile"
                 }
-              }
+              ]
             },
             "url": {
-              "raw": "{{api_url}}/auth/login",
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
               "host": [
-                "{{api_url}}"
+                "{{keycloak_url}}"
               ],
               "path": [
-                "auth",
-                "login"
+                "realms",
+                "{{keycloak_realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
               ]
             }
           },
           "response": []
         },
         {
-          "name": "Login - invalid password failure",
+          "name": "Get current user - invalid token failure",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('rejects invalid credentials', () => {\n  pm.response.to.have.status(401);\n  pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED');\n});"
+                  "pm.test('rejects tokens not issued by Keycloak', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED');",
+                  "});"
                 ]
               }
             }
           ],
           "request": {
-            "method": "POST",
+            "method": "GET",
             "header": [
               {
-                "key": "Content-Type",
-                "value": "application/json"
+                "key": "Authorization",
+                "value": "Bearer not-a-keycloak-token"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\r\n    \"username\": \"{{email}}\",\r\n    \"password\": \"incorrect-password\"\r\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
             "url": {
-              "raw": "{{api_url}}/auth/login",
+              "raw": "{{api_url}}/auth/me",
               "host": [
                 "{{api_url}}"
               ],
               "path": [
                 "auth",
-                "login"
+                "me"
               ]
             }
           },
@@ -627,14 +671,27 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{access_token}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"Temporary default\"}}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"data\":{\"summary\":\"Temporary default\"}}"
+            },
             "url": {
               "raw": "{{api_url}}/profile",
-              "host": ["{{api_url}}"],
-              "path": ["profile"]
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profile"
+              ]
             }
           },
           "response": []
@@ -742,64 +799,156 @@
         {
           "name": "Get default after updating older profile",
           "event": [
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('the newer profile remains the default and is unchanged', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('temporary_profile_id'));",
-              "  pm.expect(pm.response.json().data.summary).to.eql('Temporary default');",
-              "});"
-            ] } }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the newer profile remains the default and is unchanged', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('temporary_profile_id'));",
+                  "  pm.expect(pm.response.json().data.summary).to.eql('Temporary default');",
+                  "});"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-            "url": { "raw": "{{api_url}}/profile", "host": ["{{api_url}}"], "path": ["profile"] }
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/profile",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profile"
+              ]
+            }
           },
           "response": []
         },
         {
           "name": "Update profile - missing failure",
           "event": [
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('does not create a missing profile', () => pm.response.to.have.status(404));"
-            ] } }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('does not create a missing profile', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{access_token}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"missing\"}}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"data\":{\"summary\":\"missing\"}}"
+            },
             "url": {
               "raw": "{{api_url}}/profile/{{unknown_id}}",
-              "host": ["{{api_url}}"],
-              "path": ["profile", "{{unknown_id}}"]
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profile",
+                "{{unknown_id}}"
+              ]
             }
           },
           "response": []
         },
         {
-          "name": "Register profile isolation user",
+          "name": "Keycloak sign-up profile isolation user",
           "event": [
-            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
-              "pm.variables.set('profile_other_email', `profile-other-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`);"
-            ] } },
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('registers another user', () => {",
-              "  pm.response.to.have.status(201);",
-              "  pm.collectionVariables.set('profile_other_token', pm.response.json().access_token);",
-              "});"
-            ] } }
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('profile_other_email', `profile-other-${Date.now()}-${Math.floor(Math.random() * 1e6)}@example.com`);",
+                  "// Dev-only: provision the Keycloak user through the Admin API (replaces the removed /auth/register).\n// Wrapped in its own scope so it cannot clash with variables declared above.\n(() => {\n  const kc = pm.variables.replaceIn('{{keycloak_url}}');\n  const realm = pm.variables.replaceIn('{{keycloak_realm}}');\n  const email = pm.variables.replaceIn('{{profile_other_email}}');\n  const password = pm.variables.replaceIn('{{password}}');\n  pm.sendRequest({\n    url: `${kc}/realms/master/protocol/openid-connect/token`,\n    method: 'POST',\n    header: { 'Content-Type': 'application/x-www-form-urlencoded' },\n    body: { mode: 'urlencoded', urlencoded: [\n      { key: 'grant_type', value: 'password' },\n      { key: 'client_id', value: 'admin-cli' },\n      { key: 'username', value: pm.variables.replaceIn('{{keycloak_admin_user}}') },\n      { key: 'password', value: pm.variables.replaceIn('{{keycloak_admin_password}}') },\n    ] },\n  }, (adminError, adminResponse) => {\n    if (adminError || adminResponse.code !== 200) { throw new Error('Keycloak admin login failed'); }\n    pm.sendRequest({\n      url: `${kc}/admin/realms/${realm}/users`,\n      method: 'POST',\n      header: {\n        'Content-Type': 'application/json',\n        Authorization: `Bearer ${adminResponse.json().access_token}`,\n      },\n      body: { mode: 'raw', raw: JSON.stringify({\n        username: email, email, emailVerified: true, enabled: true,\n        firstName: 'Postman', lastName: 'User',\n        credentials: [{ type: 'password', value: password, temporary: false }],\n      }) },\n    }, (createError, createResponse) => {\n      if (createError || ![201, 409].includes(createResponse.code)) {\n        throw new Error(`Keycloak user creation failed: ${createResponse && createResponse.code}`);\n      }\n    });\n  });\n})();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('signs in another user', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.token_type.toLowerCase()).to.eql('bearer');",
+                  "  pm.collectionVariables.set('profile_other_token', body.access_token);",
+                  "});"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\"email\":\"{{profile_other_email}}\",\"password\":\"{{password}}\"}" },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-www-form-urlencoded"
+              }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloak_client_id}}"
+                },
+                {
+                  "key": "username",
+                  "value": "{{profile_other_email}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid email profile"
+                }
+              ]
+            },
             "url": {
-              "raw": "{{api_url}}/auth/register",
-              "host": ["{{api_url}}"],
-              "path": ["auth", "register"]
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
+              "host": [
+                "{{keycloak_url}}"
+              ],
+              "path": [
+                "realms",
+                "{{keycloak_realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
+              ]
             }
           },
           "response": []
@@ -807,21 +956,41 @@
         {
           "name": "Update profile - other owner failure",
           "event": [
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('hides another user\\u0027s profile', () => pm.response.to.have.status(404));"
-            ] } }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('hides another user\\u0027s profile', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{profile_other_token}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{profile_other_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"intrusion\"}}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"data\":{\"summary\":\"intrusion\"}}"
+            },
             "url": {
               "raw": "{{api_url}}/profile/{{profile_id}}",
-              "host": ["{{api_url}}"],
-              "path": ["profile", "{{profile_id}}"]
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profile",
+                "{{profile_id}}"
+              ]
             }
           },
           "response": []
@@ -829,20 +998,36 @@
         {
           "name": "Get profile after unauthorized update",
           "event": [
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('the selected profile remains unchanged', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(pm.response.json().data).to.eql(JSON.parse(pm.collectionVariables.get('updated_profile_data')));",
-              "});"
-            ] } }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the selected profile remains unchanged', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().data).to.eql(JSON.parse(pm.collectionVariables.get('updated_profile_data')));",
+                  "});"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
             "url": {
               "raw": "{{api_url}}/profiles/{{profile_id}}",
-              "host": ["{{api_url}}"],
-              "path": ["profiles", "{{profile_id}}"]
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profiles",
+                "{{profile_id}}"
+              ]
             }
           },
           "response": []
@@ -850,17 +1035,33 @@
         {
           "name": "Delete temporary profile",
           "event": [
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('deletes the temporary profile', () => pm.response.to.have.status(204));"
-            ] } }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('deletes the temporary profile', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "DELETE",
-            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
             "url": {
               "raw": "{{api_url}}/profiles/{{temporary_profile_id}}",
-              "host": ["{{api_url}}"],
-              "path": ["profiles", "{{temporary_profile_id}}"]
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profiles",
+                "{{temporary_profile_id}}"
+              ]
             }
           },
           "response": []
@@ -868,21 +1069,41 @@
         {
           "name": "Update profile - deleted failure",
           "event": [
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('does not update a deleted profile', () => pm.response.to.have.status(404));"
-            ] } }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('does not update a deleted profile', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{access_token}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "body": { "mode": "raw", "raw": "{\"data\":{\"summary\":\"revived\"}}" },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"data\":{\"summary\":\"revived\"}}"
+            },
             "url": {
               "raw": "{{api_url}}/profile/{{temporary_profile_id}}",
-              "host": ["{{api_url}}"],
-              "path": ["profile", "{{temporary_profile_id}}"]
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profile",
+                "{{temporary_profile_id}}"
+              ]
             }
           },
           "response": []
@@ -890,18 +1111,37 @@
         {
           "name": "Get restored default profile",
           "event": [
-            { "listen": "test", "script": { "type": "text/javascript", "exec": [
-              "pm.test('the original profile is the default again', () => {",
-              "  pm.response.to.have.status(200);",
-              "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('profile_id'));",
-              "  pm.expect(pm.response.json().data).to.eql(JSON.parse(pm.collectionVariables.get('updated_profile_data')));",
-              "});"
-            ] } }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('the original profile is the default again', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('profile_id'));",
+                  "  pm.expect(pm.response.json().data).to.eql(JSON.parse(pm.collectionVariables.get('updated_profile_data')));",
+                  "});"
+                ]
+              }
+            }
           ],
           "request": {
             "method": "GET",
-            "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
-            "url": { "raw": "{{api_url}}/profile", "host": ["{{api_url}}"], "path": ["profile"] }
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_url}}/profile",
+              "host": [
+                "{{api_url}}"
+              ],
+              "path": [
+                "profile"
+              ]
+            }
           },
           "response": []
         }
@@ -2026,7 +2266,7 @@
           "response": []
         },
         {
-          "name": "Register second user - success",
+          "name": "Keycloak sign-up second user - success",
           "event": [
             {
               "listen": "prerequest",
@@ -2035,7 +2275,8 @@
                 "exec": [
                   "const userName = pm.variables.replaceIn('{{$randomUserName}}');",
                   "const domain = pm.variables.replaceIn('{{$randomDomainName}}');",
-                  "pm.collectionVariables.set('other_email', `${userName}-other-${Date.now()}-${Math.floor(Math.random() * 1e6)}@${domain}`);"
+                  "pm.collectionVariables.set('other_email', `${userName}-other-${Date.now()}-${Math.floor(Math.random() * 1e6)}@${domain}`);",
+                  "// Dev-only: provision the Keycloak user through the Admin API (replaces the removed /auth/register).\n// Wrapped in its own scope so it cannot clash with variables declared above.\n(() => {\n  const kc = pm.variables.replaceIn('{{keycloak_url}}');\n  const realm = pm.variables.replaceIn('{{keycloak_realm}}');\n  const email = pm.variables.replaceIn('{{other_email}}');\n  const password = pm.variables.replaceIn('{{password}}');\n  pm.sendRequest({\n    url: `${kc}/realms/master/protocol/openid-connect/token`,\n    method: 'POST',\n    header: { 'Content-Type': 'application/x-www-form-urlencoded' },\n    body: { mode: 'urlencoded', urlencoded: [\n      { key: 'grant_type', value: 'password' },\n      { key: 'client_id', value: 'admin-cli' },\n      { key: 'username', value: pm.variables.replaceIn('{{keycloak_admin_user}}') },\n      { key: 'password', value: pm.variables.replaceIn('{{keycloak_admin_password}}') },\n    ] },\n  }, (adminError, adminResponse) => {\n    if (adminError || adminResponse.code !== 200) { throw new Error('Keycloak admin login failed'); }\n    pm.sendRequest({\n      url: `${kc}/admin/realms/${realm}/users`,\n      method: 'POST',\n      header: {\n        'Content-Type': 'application/json',\n        Authorization: `Bearer ${adminResponse.json().access_token}`,\n      },\n      body: { mode: 'raw', raw: JSON.stringify({\n        username: email, email, emailVerified: true, enabled: true,\n        firstName: 'Postman', lastName: 'User',\n        credentials: [{ type: 'password', value: password, temporary: false }],\n      }) },\n    }, (createError, createResponse) => {\n      if (createError || ![201, 409].includes(createResponse.code)) {\n        throw new Error(`Keycloak user creation failed: ${createResponse && createResponse.code}`);\n      }\n    });\n  });\n})();"
                 ]
               }
             },
@@ -2045,9 +2286,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('creates a second user to verify interest isolation', () => {",
-                  "  pm.response.to.have.status(201);",
+                  "  pm.response.to.have.status(200);",
                   "  const body = pm.response.json();",
                   "  pm.expect(body.access_token).to.be.a('string').and.not.empty;",
+                  "  pm.expect(body.token_type.toLowerCase()).to.eql('bearer');",
                   "  pm.collectionVariables.set('other_access_token', body.access_token);",
                   "});"
                 ]
@@ -2059,26 +2301,45 @@
             "header": [
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "application/x-www-form-urlencoded"
               }
             ],
             "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{other_email}}\",\n  \"password\": \"{{password}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{keycloak_client_id}}"
+                },
+                {
+                  "key": "username",
+                  "value": "{{other_email}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{password}}"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid email profile"
                 }
-              }
+              ]
             },
             "url": {
-              "raw": "{{api_url}}/auth/register",
+              "raw": "{{keycloak_url}}/realms/{{keycloak_realm}}/protocol/openid-connect/token",
               "host": [
-                "{{api_url}}"
+                "{{keycloak_url}}"
               ],
               "path": [
-                "auth",
-                "register"
+                "realms",
+                "{{keycloak_realm}}",
+                "protocol",
+                "openid-connect",
+                "token"
               ]
             }
           },
@@ -4908,6 +5169,14 @@
     },
     {
       "key": "other_application_id",
+      "value": ""
+    },
+    {
+      "key": "profile_other_email",
+      "value": ""
+    },
+    {
+      "key": "profile_other_token",
       "value": ""
     }
   ]

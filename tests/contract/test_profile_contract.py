@@ -1,7 +1,8 @@
+from tests.keycloak_stub import issue_token
+
+
 def test_profile_session_upload_and_edit_preserves_profile(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers)
     assert session.status_code == 201

@@ -1,8 +1,9 @@
 from shared.models import JobInterest
+from tests.keycloak_stub import issue_token
 
 
 def test_job_deduplication_filters_and_interest(client):
-    token = client.post("/api/v1/auth/register", json={"email": "jobs@example.com", "password": "password123"}).json()[
+    token = issue_token(client, "jobs@example.com")[
         "access_token"
     ]
     headers = {"Authorization": f"Bearer {token}"}
@@ -30,10 +31,8 @@ def test_job_deduplication_filters_and_interest(client):
 
 
 def test_job_contract_supports_pagination_date_filter_and_delete_authorization(client):
-    first = client.post(
-        "/api/v1/auth/register", json={"email": "submitter@example.com", "password": "password123"}
-    ).json()
-    second = client.post("/api/v1/auth/register", json={"email": "other@example.com", "password": "password123"}).json()
+    first = issue_token(client, "submitter@example.com")
+    second = issue_token(client, "other@example.com")
     headers = {"Authorization": f"Bearer {first['access_token']}"}
     job = client.post(
         "/api/v1/jobs/normalize",
@@ -51,12 +50,8 @@ def test_job_contract_supports_pagination_date_filter_and_delete_authorization(c
 
 
 def test_deleting_a_job_removes_interests_held_in_it(client, database_session):
-    submitter = client.post(
-        "/api/v1/auth/register", json={"email": "del-submitter@example.com", "password": "password123"}
-    ).json()["access_token"]
-    follower = client.post(
-        "/api/v1/auth/register", json={"email": "del-follower@example.com", "password": "password123"}
-    ).json()["access_token"]
+    submitter = issue_token(client, "del-submitter@example.com")["access_token"]
+    follower = issue_token(client, "del-follower@example.com")["access_token"]
     submitter_headers = {"Authorization": "Bearer " + submitter}
     follower_headers = {"Authorization": "Bearer " + follower}
     job_id = client.post(

@@ -1,5 +1,4 @@
 from api.schemas.requests.applications import ApplicationCreate, ApplicationFieldsUpdate, ApplicationStatusUpdate
-from api.schemas.requests.auth import UserCreate, UserLogin
 from api.schemas.requests.documents import DefaultDocumentIn
 from api.schemas.requests.jobs import JobNormalizeRequest
 from api.schemas.requests.matching import JobMatchingRequest, MatchCreateRequest, MatchReportRequest
@@ -25,6 +24,4 @@ __all__ = [
     "ProfileSessionCreate",
     "ProfileUpdate",
     "TailoringRequestIn",
-    "UserCreate",
-    "UserLogin",
 ]

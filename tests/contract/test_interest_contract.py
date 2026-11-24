@@ -3,12 +3,13 @@ from datetime import datetime, timedelta, timezone
 import pytest
 
 from shared.models import Job, JobInterest, User
+from tests.keycloak_stub import issue_token
 
 BASE_TIME = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
 
 
 def register(client, session, email):
-    token = client.post("/api/v1/auth/register", json={"email": email, "password": "password123"}).json()[
+    token = issue_token(client, email)[
         "access_token"
     ]
     user = session.query(User).filter(User.email == email).one()

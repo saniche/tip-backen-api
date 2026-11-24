@@ -4,6 +4,7 @@ from pathlib import Path
 from db import models as db_models
 from db.base import Base
 from main import app
+from tests.keycloak_stub import auth_headers
 
 
 def test_schema_and_entity_packages_remain_separate():
@@ -57,7 +58,9 @@ def test_operation_ids_are_unique_and_protected_routes_use_bearer_auth():
     schemes = app.openapi()["components"]["securitySchemes"]
     assert schemes["BearerAuth"]["type"] == "http"
     assert schemes["BearerAuth"]["scheme"] == "bearer"
-    assert "security" not in app.openapi()["paths"]["/api/v1/auth/login"]["post"]
+    assert app.openapi()["paths"]["/api/v1/auth/me"]["get"]["security"] == [{"BearerAuth": []}]
+    assert "/api/v1/auth/login" not in app.openapi()["paths"]
+    assert "/api/v1/auth/register" not in app.openapi()["paths"]
     assert app.openapi()["paths"]["/api/v1/jobs"]["get"]["security"] == [{"BearerAuth": []}]
 
 
@@ -111,6 +114,7 @@ def test_dashboard_and_application_filters_are_documented():
 
 
 def test_validation_errors_use_the_shared_error_envelope(client):
-    response = client.post("/api/v1/auth/register", json={"email": "candidate@example.com"})
+    headers = auth_headers(client, "validation@example.com")
+    response = client.get("/api/v1/jobs", params={"limit": "not-a-number"}, headers=headers)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"

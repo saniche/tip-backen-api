@@ -412,7 +412,7 @@ def test_postgres_boundary_uses_fake_provider_and_storage():
     try:
         with engine.connect() as connection:
             assert connection.execute(text("SELECT 1")).scalar_one() == 1
-        user = User(email="postgres-boundary@example.com", hashed_password="hash")
+        user = User(email="postgres-boundary@example.com")
         session.add(user)
         session.flush()
         extracted = provider.extract("Python")
@@ -430,3 +430,52 @@ def test_postgres_boundary_uses_fake_provider_and_storage():
         session.close()
         Base.metadata.drop_all(engine)
         engine.dispose()
+
+
+def test_keycloak_users_migration_preserves_users_and_reverses():
+    database_path = Path(tempfile.mktemp(suffix=".db"))
+    environment = os.environ.copy()
+    environment["DATABASE_URL"] = f"sqlite+pysqlite:///{database_path}"
+
+    def run(*args):
+        result = _run_alembic(environment, *args)
+        assert result.returncode == 0, result.stderr
+
+    def user_columns(connection):
+        return {row[1] for row in connection.execute("PRAGMA table_info('users')")}
+
+    try:
+        run("upgrade", "014_processing_outbox")
+        with sqlite3.connect(database_path) as connection:
+            connection.execute(
+                "INSERT INTO users (id, email, hashed_password) VALUES (?, ?, ?)",
+                ("legacy-user", "legacy@example.com", "hash"),
+            )
+            connection.commit()
+
+        run("upgrade", "015_keycloak_users")
+        with sqlite3.connect(database_path) as connection:
+            columns = user_columns(connection)
+            assert "hashed_password" not in columns
+            assert {
+                "keycloak_sub", "email_verified", "username", "first_name", "last_name",
+                "is_active", "updated_at", "last_login_at",
+            } <= columns
+            row = connection.execute(
+                "SELECT id, email, keycloak_sub, is_active, email_verified FROM users"
+            ).fetchone()
+            assert row == ("legacy-user", "legacy@example.com", None, 1, 0)
+            indexes = {item[1]: item[2] for item in connection.execute("PRAGMA index_list('users')")}
+            assert indexes.get("ix_users_keycloak_sub") == 1
+
+        run("downgrade", "014_processing_outbox")
+        with sqlite3.connect(database_path) as connection:
+            columns = user_columns(connection)
+            assert "hashed_password" in columns
+            assert "keycloak_sub" not in columns
+            assert connection.execute("SELECT id FROM users").fetchall() == [("legacy-user",)]
+    finally:
+        try:
+            database_path.unlink(missing_ok=True)
+        except PermissionError:
+            pass

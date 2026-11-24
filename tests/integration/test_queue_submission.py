@@ -5,13 +5,12 @@ from sqlalchemy import func, select
 
 import shared.queue as background_queue
 from shared.models import CVRequest, Job, MatchReport, ProcessingJob, ProcessingOutbox, UserFile
+from tests.keycloak_stub import issue_token
 
 
 @pytest.mark.parametrize("route", ["normalize", "profile", "matching", "match", "cv", "tailoring"])
 def test_unavailable_redis_rejects_submission_without_committing(client, database_session, monkeypatch, route):
-    registration = client.post(
-        "/api/v1/auth/register", json={"email": "queue-user@example.com", "password": "password123"}
-    ).json()
+    registration = issue_token(client, "queue-user@example.com")
     headers = {"Authorization": f"Bearer {registration['access_token']}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {"summary": "Python", "skills": ["Python"]}})
     job = client.post(
@@ -55,9 +54,7 @@ def test_unavailable_redis_rejects_submission_without_committing(client, databas
 
 
 def test_ambiguous_enqueue_returns_503_and_retains_committed_work(client, database_session, monkeypatch):
-    registration = client.post(
-        "/api/v1/auth/register", json={"email": "queue-timeout@example.com", "password": "password123"}
-    ).json()
+    registration = issue_token(client, "queue-timeout@example.com")
     headers = {"Authorization": f"Bearer {registration['access_token']}"}
 
     class FailedQueue:

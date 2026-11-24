@@ -4,7 +4,7 @@ from api.schemas.responses.applications import (
     ApplicationJournalResponse,
     ApplicationStatusHistoryResponse,
 )
-from api.schemas.responses.auth import AuthTokenResponse
+from api.schemas.responses.auth import CurrentUserResponse
 from api.schemas.responses.documents import DefaultDocumentResponse
 from api.schemas.responses.health import HealthResponse, ReadinessResponse
 from api.schemas.responses.jobs import (
@@ -46,8 +46,8 @@ __all__ = [
     "ApplicationJournalPage",
     "ApplicationJournalResponse",
     "ApplicationStatusHistoryResponse",
-    "AuthTokenResponse",
     "CurrentProfileResponse",
+    "CurrentUserResponse",
     "CvMetadataResponse",
     "CvTailoringResponse",
     "DefaultDocumentResponse",

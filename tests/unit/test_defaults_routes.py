@@ -2,12 +2,13 @@ import pytest
 
 from shared.database import TestingSessionLocal
 from shared.models import UserDocument
+from tests.keycloak_stub import issue_token
 
 PATHS = ["/api/v1/defaults/cv", "/api/v1/defaults/cover-letter"]
 
 
 def _auth(client, email):
-    token = client.post("/api/v1/auth/register", json={"email": email, "password": "password123"}).json()[
+    token = issue_token(client, email)[
         "access_token"
     ]
     return {"Authorization": f"Bearer {token}"}

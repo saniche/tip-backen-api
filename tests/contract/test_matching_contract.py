@@ -1,14 +1,11 @@
 import matching.matching_service as matching_service
 from shared.llm_structured import StructuredProviderError
+from tests.keycloak_stub import issue_token
 
 
 def test_matching_contract_ranks_results_and_denies_other_owner(client):
-    first = client.post(
-        "/api/v1/auth/register", json={"email": "match-contract@example.com", "password": "password123"}
-    ).json()
-    second = client.post(
-        "/api/v1/auth/register", json={"email": "match-other@example.com", "password": "password123"}
-    ).json()
+    first = issue_token(client, "match-contract@example.com")
+    second = issue_token(client, "match-other@example.com")
     headers = {"Authorization": f"Bearer {first['access_token']}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python", "FastAPI"]}})
     job = client.post(
@@ -40,9 +37,7 @@ def test_matching_contract_ranks_results_and_denies_other_owner(client):
 
 
 def test_matching_contract_returns_safe_provider_failure(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "match-provider-failure@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "match-provider-failure@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
     job = client.post(

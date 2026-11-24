@@ -1,10 +1,11 @@
 import pytest
 
 from shared.models import ApplicationJournal, ApplicationStatusHistory, Job, JobInterest, User
+from tests.keycloak_stub import issue_token
 
 
 def _register(client, session, email):
-    token = client.post("/api/v1/auth/register", json={"email": email, "password": "password123"}).json()[
+    token = issue_token(client, email)[
         "access_token"
     ]
     return {"Authorization": "Bearer " + token}, session.query(User).filter(User.email == email).one().id

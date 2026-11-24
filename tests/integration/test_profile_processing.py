@@ -6,12 +6,11 @@ from docx import Document
 import candidate_profile.profile_builder_router as profile_builder_router
 from candidate_profile.profile_builder import CertificateEntry, Education, SkillEntry, UserProfile, WorkExperience
 from shared.llm_structured import StructuredProviderError
+from tests.keycloak_stub import issue_token
 
 
 def test_profile_processing_accepts_markdown(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-markdown@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-markdown@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
     received = {}
@@ -35,9 +34,7 @@ def test_profile_processing_accepts_markdown(client, monkeypatch):
 
 
 def test_profile_processing_extracts_docx_text(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-docx@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-docx@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
     document = Document()
@@ -73,9 +70,7 @@ def test_profile_processing_extracts_docx_text(client, monkeypatch):
 
 
 def test_profile_session_language_applies_to_all_extraction(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-language@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-language@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session_response = client.post(
         "/api/v1/profile/sessions",
@@ -108,9 +103,7 @@ def test_profile_session_language_applies_to_all_extraction(client, monkeypatch)
 
 
 def test_profile_upload_rejects_unsupported_content_type(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-unsupported@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-unsupported@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
 
@@ -124,9 +117,7 @@ def test_profile_upload_rejects_unsupported_content_type(client):
 
 
 def test_profile_upload_rejects_invalid_docx(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-invalid-docx@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-invalid-docx@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
 
@@ -146,9 +137,7 @@ def test_profile_upload_rejects_invalid_docx(client):
 
 
 def test_profile_processing_completes_and_preserves_edit(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-int@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-int@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
 
@@ -173,9 +162,7 @@ def test_profile_processing_completes_and_preserves_edit(client):
 
 
 def test_profile_processing_persists_complete_structured_profile(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-complete@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-complete@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
 
@@ -257,9 +244,7 @@ def test_profile_processing_persists_complete_structured_profile(client, monkeyp
 
 
 def test_profile_provider_failure_marks_file_and_job_failed(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-failure@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-failure@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
 
@@ -280,9 +265,7 @@ def test_profile_provider_failure_marks_file_and_job_failed(client, monkeypatch)
 
 
 def test_profile_invalid_structured_output_marks_processing_failed(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "profile-invalid@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "profile-invalid@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/v1/profile/sessions", headers=headers).json()
 

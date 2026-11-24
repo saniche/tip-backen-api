@@ -2,12 +2,11 @@ import time
 
 import jobs.job_normalizer as job_normalizer
 from shared.llm_structured import StructuredProviderError
+from tests.keycloak_stub import issue_token
 
 
 def test_job_normalization_deduplicates_and_exposes_structured_defaults(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "job-int@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "job-int@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     payload = {
         "url": "https://jobs.test/integration",
@@ -42,9 +41,7 @@ def test_job_normalization_deduplicates_and_exposes_structured_defaults(client):
 
 
 def test_job_normalization_extracts_metadata_when_client_fields_are_absent(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "job-content-only@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "job-content-only@example.com")["access_token"]
     headers = {"Authorization": "Bearer " + token}
     created = client.post(
         "/api/v1/jobs/normalize",
@@ -62,18 +59,14 @@ def test_job_normalization_extracts_metadata_when_client_fields_are_absent(clien
 
 
 def test_job_normalization_requires_url_and_content(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "job-invalid-request@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "job-invalid-request@example.com")["access_token"]
     headers = {"Authorization": "Bearer " + token}
 
     assert client.post("/api/v1/jobs/normalize", headers=headers, json={"url": "https://jobs.test"}).status_code == 422
 
 
 def test_job_provider_failure_marks_job_and_processing_failed(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "job-failure@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "job-failure@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     async def fail_normalization(*args, **kwargs):
@@ -92,9 +85,7 @@ def test_job_provider_failure_marks_job_and_processing_failed(client, monkeypatc
 
 
 def test_job_invalid_structured_output_is_not_matchable(client, monkeypatch):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "job-invalid@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "job-invalid@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     async def invalid_normalization(*args, **kwargs):

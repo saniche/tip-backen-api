@@ -76,93 +76,21 @@
         }
       }
     },
-    "/api/v1/auth/register": {
-      "post": {
+    "/api/v1/auth/me": {
+      "get": {
         "tags": [
           "Auth"
         ],
-        "summary": "Register an account",
-        "description": "Creates an account and returns a bearer access token. Passwords are never returned.",
-        "operationId": "auth_post_register_api_v1_auth_register",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AuthTokenResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "The request is invalid or cannot be processed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "The request body, query parameters, or uploaded file are invalid.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "The service could not complete the request.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/login": {
-      "post": {
-        "tags": [
-          "Auth"
-        ],
-        "summary": "Log in",
-        "description": "Validates JSON login credentials and returns a bearer access token.",
-        "operationId": "auth_post_login_api_v1_auth_login",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UserLogin"
-              }
-            }
-          },
-          "required": true
-        },
+        "summary": "Get the current user",
+        "description": "Returns the local user record for the Keycloak identity in the bearer token. The record is created on the first authenticated request and kept in sync with the token claims. Sign-in and registration happen in Keycloak, not in this API.",
+        "operationId": "auth_get_me_api_v1_auth_me",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthTokenResponse"
+                  "$ref": "#/components/schemas/CurrentUserResponse"
                 }
               }
             }
@@ -177,8 +105,18 @@
               }
             }
           },
-          "422": {
-            "description": "The request body, query parameters, or uploaded file are invalid.",
+          "403": {
+            "description": "The authenticated user is not permitted to perform this operation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The request conflicts with the current resource state.",
             "content": {
               "application/json": {
                 "schema": {
@@ -196,8 +134,23 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "A required service is not ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ]
       }
     },
     "/api/v1/applications": {
@@ -5155,37 +5108,6 @@
           "status": "Interview"
         }
       },
-      "AuthTokenResponse": {
-        "properties": {
-          "access_token": {
-            "type": "string",
-            "title": "Access Token",
-            "description": "Signed bearer access token.",
-            "examples": [
-              "eyJ...redacted"
-            ]
-          },
-          "token_type": {
-            "type": "string",
-            "title": "Token Type",
-            "description": "Authorization scheme for the returned token.",
-            "default": "bearer",
-            "examples": [
-              "bearer"
-            ]
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "access_token"
-        ],
-        "title": "AuthTokenResponse",
-        "example": {
-          "access_token": "eyJ...redacted",
-          "token_type": "bearer"
-        }
-      },
       "Body_documents_post_upload_default_cover_letter_api_v1_defaults_cover_letter_file": {
         "properties": {
           "file": {
@@ -5333,6 +5255,110 @@
           "label": "Engineering profile",
           "output_language": "English",
           "user_id": "user-123"
+        }
+      },
+      "CurrentUserResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Internal user id used by every owned resource."
+          },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "description": "Email address synced from Keycloak."
+          },
+          "email_verified": {
+            "type": "boolean",
+            "title": "Email Verified",
+            "description": "Whether Keycloak has verified the email address."
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username",
+            "description": "Keycloak preferred username."
+          },
+          "first_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name",
+            "description": "Given name from Keycloak."
+          },
+          "last_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name",
+            "description": "Family name from Keycloak."
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "admin"
+            ],
+            "title": "Role",
+            "description": "Platform role mapped from Keycloak roles."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "When the local user record was first created."
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At",
+            "description": "Last time an access token was seen."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "email",
+          "email_verified",
+          "role",
+          "created_at"
+        ],
+        "title": "CurrentUserResponse",
+        "example": {
+          "created_at": "2026-11-23T10:00:00Z",
+          "email": "candidate@example.com",
+          "email_verified": true,
+          "first_name": "Dev",
+          "id": "4f9c1f0e-2b7a-4b8e-9d55-0c6c1d2a9e11",
+          "last_login_at": "2026-11-23T10:00:00Z",
+          "last_name": "Candidate",
+          "role": "user",
+          "username": "candidate@example.com"
         }
       },
       "CvMetadataResponse": {
@@ -8277,66 +8303,6 @@
           "status": "completed"
         }
       },
-      "UserCreate": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "title": "Email",
-            "description": "Account email address.",
-            "examples": [
-              "candidate@example.com"
-            ]
-          },
-          "password": {
-            "type": "string",
-            "title": "Password",
-            "description": "Account password; never returned by the API.",
-            "examples": [
-              "StrongPass123!"
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "email",
-          "password"
-        ],
-        "title": "UserCreate",
-        "example": {
-          "email": "candidate@example.com",
-          "password": "StrongPass123!"
-        }
-      },
-      "UserLogin": {
-        "properties": {
-          "username": {
-            "type": "string",
-            "title": "Username",
-            "description": "Account email address used as the login name.",
-            "examples": [
-              "candidate@example.com"
-            ]
-          },
-          "password": {
-            "type": "string",
-            "title": "Password",
-            "description": "Account password.",
-            "examples": [
-              "StrongPass123!"
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "username",
-          "password"
-        ],
-        "title": "UserLogin",
-        "example": {
-          "password": "StrongPass123!",
-          "username": "candidate@example.com"
-        }
-      },
       "UserProfileDetailResponse": {
         "properties": {
           "id": {
@@ -8570,7 +8536,7 @@
     "securitySchemes": {
       "BearerAuth": {
         "type": "http",
-        "description": "Paste the bearer access token returned by the JSON login endpoint.",
+        "description": "Paste a Keycloak access token for the job-process realm.",
         "scheme": "bearer"
       }
     }
@@ -8578,7 +8544,7 @@
   "tags": [
     {
       "name": "Auth",
-      "description": "Account registration and token creation."
+      "description": "Current user lookup. Sign-in and registration are handled by Keycloak (OIDC)."
     },
     {
       "name": "Applications",

@@ -1,7 +1,8 @@
+from tests.keycloak_stub import issue_token
+
+
 def test_matching_report_routes_exist_and_scope_by_owner(client):
-    token = client.post(
-        "/api/v1/auth/register", json={"email": "matcher@example.com", "password": "password123"}
-    ).json()["access_token"]
+    token = issue_token(client, "matcher@example.com")["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     profile = client.post("/api/v1/profile/sessions", headers=headers)

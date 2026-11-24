@@ -29,7 +29,7 @@ def test_job_data_maps_flat_normalized_requirements_for_matching():
 
 @pytest.mark.asyncio
 async def test_match_report_creation_and_ownership(database_session):
-    user = User(email="match@example.com", hashed_password="hash")
+    user = User(email="match@example.com")
     database_session.add(user)
     database_session.commit()
     database_session.refresh(user)
@@ -68,7 +68,7 @@ async def test_match_report_creation_and_ownership(database_session):
     assert persisted.rules_version == "v2"
     assert set(persisted.llm_match_output) == {"requirements", "desirables", "notes", "analysis"}
 
-    other_user = User(email="other@example.com", hashed_password="hash")
+    other_user = User(email="other@example.com")
     database_session.add(other_user)
     database_session.commit()
     with pytest.raises(PermissionError):
@@ -77,7 +77,7 @@ async def test_match_report_creation_and_ownership(database_session):
 
 @pytest.mark.asyncio
 async def test_match_report_rejects_missing_profile_and_unavailable_job(database_session):
-    user = User(email="missing-profile@example.com", hashed_password="hash")
+    user = User(email="missing-profile@example.com")
     database_session.add(user)
     database_session.commit()
     with pytest.raises(ValueError, match="Profile not found"):
@@ -86,7 +86,7 @@ async def test_match_report_rejects_missing_profile_and_unavailable_job(database
 
 @pytest.mark.asyncio
 async def test_match_report_uses_selected_profile_and_defaults_to_latest_active(database_session):
-    user = User(email="selected-profile@example.com", hashed_password="hash")
+    user = User(email="selected-profile@example.com")
     database_session.add(user)
     database_session.commit()
     older_profile = UserProfile(
@@ -127,8 +127,8 @@ async def test_match_report_uses_selected_profile_and_defaults_to_latest_active(
 
 
 def test_pending_match_report_rejects_unknown_and_foreign_profiles(database_session):
-    user = User(email="profile-owner@example.com", hashed_password="hash")
-    other_user = User(email="profile-other@example.com", hashed_password="hash")
+    user = User(email="profile-owner@example.com")
+    other_user = User(email="profile-other@example.com")
     database_session.add_all([user, other_user])
     database_session.commit()
     foreign_profile = UserProfile(user_id=other_user.id, data={"skills": ["Rust"]}, output_language="English")
@@ -147,7 +147,7 @@ def test_pending_match_report_rejects_unknown_and_foreign_profiles(database_sess
 
 @pytest.mark.asyncio
 async def test_match_report_keeps_profile_and_job_snapshots(database_session):
-    user = User(email="snapshot@example.com", hashed_password="hash")
+    user = User(email="snapshot@example.com")
     database_session.add(user)
     database_session.commit()
     profile = UserProfile(user_id=user.id, data={"skills": ["Python"]}, output_language="English")
@@ -178,7 +178,7 @@ async def test_match_report_keeps_profile_and_job_snapshots(database_session):
 
 @pytest.mark.asyncio
 async def test_empty_criteria_persist_null_score(database_session):
-    user = User(email="empty-criteria@example.com", hashed_password="hash")
+    user = User(email="empty-criteria@example.com")
     database_session.add(user)
     database_session.commit()
     profile = UserProfile(user_id=user.id, data={"skills": ["Python"]}, output_language="English")
@@ -208,7 +208,7 @@ async def test_empty_criteria_persist_null_score(database_session):
 
 @pytest.mark.asyncio
 async def test_match_provider_failure_does_not_persist_partial_report(database_session, monkeypatch):
-    user = User(email="provider-failure@example.com", hashed_password="hash")
+    user = User(email="provider-failure@example.com")
     database_session.add(user)
     database_session.commit()
     profile = UserProfile(user_id=user.id, data={"skills": ["Python"]}, output_language="English")
@@ -232,7 +232,7 @@ async def test_match_provider_failure_does_not_persist_partial_report(database_s
 
 
 def test_legacy_matching_output_remains_readable(database_session):
-    user = User(email="legacy-match@example.com", hashed_password="hash")
+    user = User(email="legacy-match@example.com")
     database_session.add(user)
     database_session.commit()
     profile = UserProfile(user_id=user.id, data={"skills": ["Python"]}, output_language="English")

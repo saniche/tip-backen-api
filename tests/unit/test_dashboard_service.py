@@ -18,8 +18,8 @@ from shared.models import (
 
 def test_summary_counts_owned_rows_and_uses_fixed_number_of_queries(database_session):
     session = database_session
-    owner = User(email="dashboard-unit@example.com", hashed_password="hash")
-    other = User(email="dashboard-unit-other@example.com", hashed_password="hash")
+    owner = User(email="dashboard-unit@example.com")
+    other = User(email="dashboard-unit-other@example.com")
     session.add_all([owner, other])
     session.flush()
     jobs = [Job(title=f"Job {index}", company=None) for index in range(111)]

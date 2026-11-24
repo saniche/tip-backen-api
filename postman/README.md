@@ -2,8 +2,12 @@
 
 Import `Talent-Intelligence-Platform.postman_collection.json` and
 `Talent-Intelligence-Platform.local.postman_environment.json`, then run the collection in order
-against a running local API. The collection generates a unique user email and propagates its token
-and resource identifiers automatically.
+against a running local API and Keycloak. The collection generates a unique user email, creates
+that user in Keycloak through the Admin API (dev admin `admin`/`admin`), gets a token from the
+`job-process-dev` client and passes the token and resource identifiers along automatically. Start
+Keycloak with `docker compose -f docker-compose.postman.yml up -d keycloak`. The `keycloak_*`
+environment values must match the API's `KEYCLOAK_SERVER_URL`/realm, because the token issuer is
+checked.
 
 The `profile_fixture_path` environment variable must resolve to
 `postman/fixtures/profile.txt` from the Postman or Newman working directory. Set it to an absolute

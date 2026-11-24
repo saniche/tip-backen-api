@@ -33,7 +33,7 @@ logging.basicConfig(
 )
 
 OPENAPI_TAGS = [
-    {"name": "Auth", "description": "Account registration and token creation."},
+    {"name": "Auth", "description": "Current user lookup. Sign-in and registration are handled by Keycloak (OIDC)."},
     {"name": "Applications", "description": "Track job applications and status history."},
     {"name": "Dashboard", "description": "Aggregate the authenticated user's dashboard totals."},
     {"name": "Jobs", "description": "Normalize, search, and save job postings."},

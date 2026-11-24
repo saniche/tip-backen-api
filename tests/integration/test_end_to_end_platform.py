@@ -1,8 +1,10 @@
 import time
 
+from tests.keycloak_stub import issue_token
+
 
 def test_profile_to_cv_acceptance_flow(client):
-    token = client.post("/api/v1/auth/register", json={"email": "e2e@example.com", "password": "password123"}).json()[
+    token = issue_token(client, "e2e@example.com")[
         "access_token"
     ]
     headers = {"Authorization": f"Bearer {token}"}

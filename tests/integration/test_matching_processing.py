@@ -1,12 +1,11 @@
 import matching.matching_service as matching_service
 from shared.llm_structured import StructuredProviderError
 from shared.models import Job, User, UserProfile
+from tests.keycloak_stub import issue_token
 
 
 def test_matching_processing_persists_ranked_results_and_safe_owner_scope(client):
-    user = client.post(
-        "/api/v1/auth/register", json={"email": "match-int@example.com", "password": "password123"}
-    ).json()
+    user = issue_token(client, "match-int@example.com")
     headers = {"Authorization": f"Bearer {user['access_token']}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
     first = client.post(
@@ -31,10 +30,7 @@ def test_matching_processing_persists_ranked_results_and_safe_owner_scope(client
 
 
 def test_matching_routes_use_requested_profile(client, database_session):
-    registered = client.post(
-        "/api/v1/auth/register",
-        json={"email": "match-selected@example.com", "password": "password123"},
-    ).json()
+    registered = issue_token(client, "match-selected@example.com")
     headers = {"Authorization": f"Bearer {registered['access_token']}"}
     user = database_session.query(User).filter_by(email="match-selected@example.com").one()
     selected_profile = UserProfile(user_id=user.id, data={"skills": ["Selected profile"]}, output_language="English")
@@ -71,14 +67,8 @@ def test_matching_routes_use_requested_profile(client, database_session):
 
 
 def test_matching_routes_reject_unknown_and_foreign_profiles(client, database_session):
-    owner = client.post(
-        "/api/v1/auth/register",
-        json={"email": "match-profile-owner@example.com", "password": "password123"},
-    ).json()
-    client.post(
-        "/api/v1/auth/register",
-        json={"email": "match-profile-other@example.com", "password": "password123"},
-    ).json()
+    owner = issue_token(client, "match-profile-owner@example.com")
+    issue_token(client, "match-profile-other@example.com")
     owner_headers = {"Authorization": f"Bearer {owner['access_token']}"}
     other_user = database_session.query(User).filter_by(email="match-profile-other@example.com").one()
     foreign_profile = UserProfile(
@@ -107,9 +97,7 @@ def test_matching_routes_reject_unknown_and_foreign_profiles(client, database_se
 
 
 def test_matching_invalid_structured_output_returns_safe_failure(client, monkeypatch):
-    user = client.post(
-        "/api/v1/auth/register", json={"email": "match-invalid@example.com", "password": "password123"}
-    ).json()
+    user = issue_token(client, "match-invalid@example.com")
     headers = {"Authorization": f"Bearer {user['access_token']}"}
     client.post("/api/v1/profile", headers=headers, json={"data": {"skills": ["Python"]}})
     job = client.post(
@@ -130,10 +118,7 @@ def test_matching_invalid_structured_output_returns_safe_failure(client, monkeyp
 
 
 def test_matching_api_serializes_empty_criteria_with_null_score(client, database_session):
-    registered = client.post(
-        "/api/v1/auth/register",
-        json={"email": "match-empty@example.com", "password": "password123"},
-    ).json()
+    registered = issue_token(client, "match-empty@example.com")
     headers = {"Authorization": f"Bearer {registered['access_token']}"}
     user = database_session.query(User).filter_by(email="match-empty@example.com").one()
     database_session.add(

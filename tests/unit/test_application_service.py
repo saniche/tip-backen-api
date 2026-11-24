@@ -17,7 +17,7 @@ from shared.schemas import ApplicationCreate, ApplicationStatusUpdate
 
 
 def _user(session, email):
-    user = User(email=email, hashed_password="hash")
+    user = User(email=email)
     session.add(user)
     session.flush()
     return user

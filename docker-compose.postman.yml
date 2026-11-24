@@ -5,7 +5,9 @@ x-app: &app
   environment: &app-environment
     DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/jobprocess
     REDIS_URL: redis://redis:6379/0
-    JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
+    KEYCLOAK_SERVER_URL: http://keycloak:8080
+    KEYCLOAK_REALM: job-process
+    KEYCLOAK_AUDIENCE: job-process-api
     OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     AZURE_STORAGE_CONNECTION_STRING: UseDevelopmentStorage=true
     LOCAL_BLOB_DIRECTORY: /data/blob
@@ -35,6 +37,29 @@ services:
       timeout: 3s
       retries: 12
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: ["start-dev", "--import-realm", "--health-enabled=true"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports:
+      # Bind to loopback only: reachable from the dev machine, not from the network.
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          grep -q '"UP"' <&3
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
   api:
     <<: *app
     build:
@@ -47,6 +72,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
     healthcheck:
       test:
@@ -87,6 +114,8 @@ services:
       - base_url=http://api:8000
       - --env-var
       - api_url=http://api:8000/api/v1
+      - --env-var
+      - keycloak_url=http://keycloak:8080
       - --iteration-data
       - postman/fixtures/ci-iteration-data.json
       - --reporters

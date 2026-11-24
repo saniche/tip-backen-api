@@ -13,13 +13,13 @@ from shared.models import (
     User,
     UserProfile,
 )
+from tests.keycloak_stub import issue_token
 
 
 def register(client, session, email):
-    response = client.post("/api/v1/auth/register", json={"email": email, "password": "password123"})
-    assert response.status_code == 201
+    token = issue_token(client, email)
     user_id = session.query(User).filter_by(email=email).one().id
-    return {"Authorization": f"Bearer {response.json()['access_token']}"}, user_id
+    return {"Authorization": f"Bearer {token['access_token']}"}, user_id
 
 
 def test_summary_boundaries_isolation_and_empty_account(client, database_session):

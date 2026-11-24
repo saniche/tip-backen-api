@@ -1,8 +1,10 @@
 import time
 
+from tests.keycloak_stub import issue_token
+
 
 def test_cv_tailoring_and_download_flow(client):
-    token = client.post("/api/v1/auth/register", json={"email": "cv@example.com", "password": "password123"}).json()[
+    token = issue_token(client, "cv@example.com")[
         "access_token"
     ]
     headers = {"Authorization": f"Bearer {token}"}

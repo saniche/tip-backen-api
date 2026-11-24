@@ -2,8 +2,9 @@
 
 The API is rooted at `/api/v1`. While the service is running, use:
 
-- `/docs` for interactive Swagger UI. Select **Authorize** and paste the bearer access token
-  returned by the JSON login endpoint.
+- `/docs` for interactive Swagger UI. Select **Authorize** and paste a Keycloak access token for
+  the `job-process` realm (see the README's **Authentication** section). The API has no login
+  or registration endpoints; `GET /api/v1/auth/me` returns the local user for the token.
 - `/redoc` for the ReDoc reference.
 - `/openapi.json` for the raw OpenAPI document.
 

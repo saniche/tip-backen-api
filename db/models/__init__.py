@@ -13,7 +13,21 @@ Design notes (see conversation for full rationale):
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Enum, Float, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    false,
+    true,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from db.base import Base
@@ -35,13 +49,29 @@ def _now() -> datetime:
 
 
 class User(Base):
+    """Local mirror of a Keycloak identity. Credentials live only in Keycloak.
+
+    `id` stays the internal primary key every domain table references; `keycloak_sub` links the row to
+    the Keycloak `sub` claim. Legacy rows created before the migration have no `keycloak_sub` until the
+    user's first Keycloak login links them by verified email.
+    """
+
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    keycloak_sub: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
-    hashed_password: Mapped[str] = mapped_column(String)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    username: Mapped[str | None] = mapped_column(String, nullable=True)
+    first_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String, nullable=True)
     role: Mapped[str] = mapped_column(String, default="user")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=_now, onupdate=_now, nullable=True
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class ProfileSession(Base):

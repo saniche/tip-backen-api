@@ -3,7 +3,6 @@ from api.schemas.common.errors import ApiErrorResponse, ErrorDetails
 from api.schemas.common.pagination import PaginatedResponse
 from api.schemas.common.value_objects import RecruiterInfo
 from api.schemas.requests.applications import ApplicationCreate, ApplicationFieldsUpdate, ApplicationStatusUpdate
-from api.schemas.requests.auth import UserCreate, UserLogin
 from api.schemas.requests.jobs import JobNormalizeRequest
 from api.schemas.requests.matching import JobMatchingRequest, MatchReportRequest
 from api.schemas.requests.profiles import ProfilePatch
@@ -20,7 +19,7 @@ from api.schemas.responses.applications import (
 from api.schemas.responses.applications import (
     ApplicationStatusHistoryResponse as ApplicationStatusHistoryOut,
 )
-from api.schemas.responses.auth import AuthTokenResponse as Token
+from api.schemas.responses.auth import CurrentUserResponse
 from api.schemas.responses.documents import DefaultDocumentResponse
 from api.schemas.responses.jobs import (
     InterestItem,
@@ -77,6 +76,7 @@ __all__ = [
     "ApplicationStatusUpdate",
     "CoverLetterOptions",
     "CurrentProfileResponse",
+    "CurrentUserResponse",
     "CvMetadataOut",
     "CvTailoringOut",
     "CvTailoringRequest",
@@ -112,9 +112,6 @@ __all__ = [
     "TailoringRequestDetailResponse",
     "TailoringRequestIn",
     "TailoringRequestSummaryResponse",
-    "Token",
-    "UserCreate",
-    "UserLogin",
     "UserProfileDetailResponse",
     "UserProfileSummaryResponse",
 ]
